@@ -1,4 +1,4 @@
-![FlashcardsBot architecture](architecture.png)
+![Retain architecture](architecture.png)
 
 ```text
                                                 +------------------------------------------+

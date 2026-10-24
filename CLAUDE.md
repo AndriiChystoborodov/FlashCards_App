@@ -1,4 +1,4 @@
-# FlashcardsBot
+# Retain
 
 Spaced-repetition flashcards for company/university courses.
 Teachers manage courses through an MCP client (Claude, Codex). Students get cards and answer them in Slack.
