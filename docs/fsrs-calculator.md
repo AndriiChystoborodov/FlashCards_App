@@ -28,6 +28,7 @@ export const fsrsParams = generatorParameters({
 });
 export const defaultScheduler: FSRS = fsrs(fsrsParams);
 export const LEARNED_STREAK = 2;
+export const MIN_RETENTION_DAYS = 7;   // decision 0015
 ```
 
 With ts-fsrs defaults a new card or a card after Again returns in 1 to 10 minutes. We send at most once a day, so the state would be wrong. With whole-day steps (`['1d']`) every answer yields a whole-day interval, the card goes straight to `Review`, and a wrong answer brings it back the next day.
@@ -60,10 +61,11 @@ export function applyAnswer(
   answer: Answer,
   now: Date,
   scheduler: FSRS = defaultScheduler,
+  dueNotAfter?: Date,                // end of the day before ends_at, computed by the service
 ): { state: CardState; review: Review };
 ```
 
-The scheduler is a default parameter ([decision 0009](decisions/0009-calculator-scheduler-default-param.md)). `now` is always passed in; the module never reads the clock.
+The scheduler is a default parameter ([decision 0009](decisions/0009-calculator-scheduler-default-param.md)). `now` is always passed in; the module never reads the clock. `dueNotAfter` is optional and comes from the caller, which knows `ends_at` and the student's timezone; the calculator itself has no timezone logic.
 
 ## Rules
 
@@ -77,9 +79,30 @@ The scheduler is a default parameter ([decision 0009](decisions/0009-calculator-
 
 - Right answer with `rating` undefined throws `MissingRatingError` ([decision 0004](decisions/0004-right-answer-requires-rating.md)). Zod at the route or Slack handler checks first; the throw is the last guard.
 - Wrong or null with a rating: the rating is ignored (`review.rating = null`). A stale button must not crash the handler.
-- `learnedAt = state.learnedAt ?? (newStreak >= LEARNED_STREAK ? now : null)`. Once set it is never cleared.
+- `learnedAt = state.learnedAt ?? (isLearnedNow ? now : null)`, where `isLearnedNow` is defined in [the next section](#learned-and-the-retention-gap). Once set it is never cleared.
 - A learned card is never sent again; the scheduler filters on `learnedAt`.
 - `isCorrect` is `answer.chosenOption === card.correctOption`; `null` is never correct. The range of `chosenOption` is not validated here; services validate it against the card.
+
+## Learned and the retention gap
+
+[Decision 0015](decisions/0015-learned-needs-retention-gap.md). A card becomes learned when all three hold:
+
+1. The answer is right with rating `medium` or `easy` (so the grade is Good or Easy).
+2. The new `correctStreak >= LEARNED_STREAK` (2).
+3. `state.last_review` exists and `now - state.last_review >= MIN_RETENTION_DAYS * 86_400_000` ms. This is the actual elapsed time between the two reviews, not the interval FSRS scheduled. A card never reviewed has no `last_review`, so the gap condition fails.
+
+```ts
+const gapMs = state.last_review ? now.getTime() - state.last_review.getTime() : 0;
+const isLearnedNow = rightMediumOrEasy && newStreak >= LEARNED_STREAK && gapMs >= MIN_RETENTION_DAYS * 86_400_000;
+```
+
+If the streak is 2 or more and the gap is too short, the card stays unlearned and the streak keeps counting; the first later right Medium or Easy answer with a long enough gap makes it learned. Hard, wrong and Don't know reset the streak, as before.
+
+### Clamping `due`
+
+After `scheduler.next`, if `dueNotAfter` is given and `next.due > dueNotAfter` and `dueNotAfter > now`, set `due = dueNotAfter`. The service passes the end of the local day before `ends_at` (student timezone). Other ts-fsrs fields, including `scheduled_days`, are left as ts-fsrs returned them. When `dueNotAfter <= now` (the answer is given on the last day or later) nothing is clamped: a due in the past would make the card come straight back, and a due after `ends_at` is never sent anyway.
+
+A clamped card may be reviewed less than 7 days after the previous review and then cannot become learned at that review. This is accepted: progress shows it honestly.
 
 ## Assessment evaluation
 
@@ -114,7 +137,7 @@ See [walkthrough.md](walkthrough.md), with numbers from the real library. Refere
 | Again | 1 (stability 0.21, difficulty 6.41) |
 | Again, Good | 1, 2 |
 
-Because two Medium or Easy answers in a row end a card, a card is usually sent 2 to 5 times. FSRS mostly sets the first few gaps.
+Two Medium or Easy answers in a row are not enough any more: the last one must come 7 or more days after the previous review ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). With `['1d']` steps, Good then Good (2 then 11 days) takes three sends: the second is at day 2 (not learned), the third comes after the 11-day interval. Easy then Easy (8 days) is learned at the second send. A card is usually sent 2 to 5 times. FSRS mostly sets the gaps.
 
 ## Tests
 

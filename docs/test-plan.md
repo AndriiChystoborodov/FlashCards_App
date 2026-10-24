@@ -22,10 +22,21 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | C3 | right + hard | grade Hard, streak 0 |
 | C4 | wrong option | Again, streak 0, review rating null, `isCorrect` false |
 | C5 | `chosenOption: null` | Again, streak 0 |
-| C6 | medium, medium | streak 2, `learnedAt = now` of second answer |
-| C7 | medium, hard, medium | streak 1, not learned |
+| C6 | medium, medium, second answer 8 days after the first | streak 2, `learnedAt = now` of second answer |
+| C18 | medium, medium, second answer 2 days after the first | streak 2, not learned |
+| C19 | gap exactly 7 days (7 x 24 h), streak 2, right + medium | learned |
+| C20 | gap just under 7 days (6 d 23 h 59 min) | not learned |
+| C21 | streak 2 with a short gap, then a third right Medium answer with gap of 7 or more days | streak 3, learned at the third |
+| C22 | streak 2, gap 7 or more days, but rating hard | streak 0, not learned |
+| C23 | state with no `last_review` (first answer) | gap condition fails, not learned |
+| C24 | FSRS `due` after `dueNotAfter` and `dueNotAfter > now` | `due = dueNotAfter`, other ts-fsrs fields unchanged |
+| C25 | FSRS `due` before `dueNotAfter` | `due` unchanged |
+| C26 | `dueNotAfter <= now` (answer on the last day) | not clamped |
+| C27 | `dueNotAfter` omitted | no clamp |
+| C28 | clamped card answered right + medium 5 days later, streak 2 | not learned (gap < 7) |
+| C7 | medium, hard, medium (any gaps) | streak 1, not learned |
 | C8 | easy, wrong, medium | streak 1 (wrong reset) |
-| C9 | already learned, then wrong | streak 0, `learnedAt` kept |
+| C9 | already learned, then wrong (`learnedAt` was set by an earlier answer) | streak 0, `learnedAt` kept |
 | C10 | right with no rating | throws `MissingRatingError` |
 | C11 | wrong with a rating | rating ignored, review rating null |
 | C12 | input state is not mutated | deep-equal before and after |
@@ -65,6 +76,19 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | S27 | card added mid-course | quota rises; `ends_at` already passed gives remainingDays 1 |
 | S7 | day boundary in the student's timezone | counter resets at local midnight |
 | S8 | learned card | never selected |
+| S36 | streak 2 with a short gap | card still due and selected again |
+| S37 | answer service computes `dueNotAfter` | end of the local day before `ends_at` in the student's timezone, including a timezone whose day differs from UTC |
+| S38 | card introduced 5 days before `ends_at` | cannot become learned; progress shows it unlearned at `ends_at` |
+| S39 | removed student, tick | no card, no reminder, not completed at `ends_at` |
+| S40 | removal with an open card | Slack message replaced with "expired", `sent_at` and `message_ts` cleared, progress unchanged |
+| S41 | click on the expired message | "no longer enrolled", no review stored |
+| S42 | restore with overdue cards and a voided card | overdue cards are selected, the voided card is sent again |
+| S43 | cleanup at 13 days 23 h | nothing deleted |
+| S44 | cleanup after 14 days | reviews, card_states, enrollment of that course deleted in one transaction; `users` row and other courses' data kept |
+| S45 | class progress with a removed student | excluded from the average |
+| S46 | `next()` for an enrollment with `removed_at` set | none returned, even with due cards |
+| S47 | the tick on the first run after local midnight | cleanup runs once; a second tick the same day does not run it again |
+| S48 | open card unanswered past `MAX_REMINDERS` | no new card, no more reminders, `waiting_since` equals the card's `sent_at` |
 | S9 | one card open | nothing else sent |
 | S10 | answer closes card | `sent_at` cleared, next card sent |
 | S11 | double claim by two ticks | one wins |
@@ -99,7 +123,21 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | R4 | create flashcards with bad `correct_option` | 400 |
 | R5 | start with zero cards | 409 |
 | R6 | start, stop transitions | draft to active to finished only |
-| R7 | delete a sent flashcard | 409 |
+| R7 | delete or patch (incl. `is_assessment`) a flashcard in an `active` course | 409 `course_not_draft`, card unchanged |
+| R12 | delete and patch in a `draft` course | allowed |
+| R13 | add cards to an `active` course | 201; position at the end; `is_assessment: true` gives 400 `assessment_closed` |
+| R14 | add, patch or delete in a `finished` course | 409 |
+| R15 | `DELETE .../students/:studentId` | `removed_at` set, 204; the student disappears from list, progress and `student_count` |
+| R16 | the same call again | 204, `removed_at` unchanged |
+| R17 | re-enroll within 14 days | `removed_at` cleared, progress and `card_states` intact, `restored: true` |
+| R18 | re-enroll after the cleanup | new enrollment, assessment first, no old reviews |
+| R19 | student routes with `STUDENT_ROUTES_ENABLED` unset or false | 404 |
+| R20 | env validation: `STUDENT_ROUTES_ENABLED=true` with `NODE_ENV=production` | startup fails with a clear message |
+| R21 | PATCH `is_assessment` on an `active` course | 409 `course_not_draft` |
+| R22 | progress endpoints with an open card and with none | `waiting_since` is the card's `sent_at`, or null |
+| R23 | card sent, then `MAX_REMINDERS` reminders pass with no answer; `GET /courses/:courseId/students/:studentId/progress` and the class `GET /courses/:courseId/progress` | the student's `waiting_since` equals the open card's original `sent_at` (reminders do not change it); no new card was sent |
+| R24 | the student then answers the card | `waiting_since` is null in both endpoints |
+| R25 | open card, then the student is removed | the student is gone from the lists; after a restore `waiting_since` is null until the voided card is sent again |
 | R8 | enroll with and without Slack match | `slack_matched` true and false |
 | R9 | review without rating on a right answer | 400 |
 | R10 | review with rating on a wrong answer | 200, rating null |
@@ -111,13 +149,14 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | --- | --- | --- |
 | H1 | `ack()` is called before any await on services | yes |
 | H2 | button values never contain the correct answer | assert on built blocks |
-| H3 | value fails zod | ignored and logged |
+| H3 | malformed value: not a string, invalid JSON, wrong shape, negative or non-integer `o`, unknown `r`; for both `answer_*` and `rate_*` | no throw, `ack()` already called, a warning logged, service not called, message unchanged |
 | H4 | click by a user who does not own the card | rejected |
 | H5 | right answer first click | rating buttons shown, no state change |
 | H6 | rating click | calculator called, message replaced with no buttons |
 | H7 | wrong or Don't know | right answer and material shown |
 | H8 | action id regex | `answer_1..3`, `answer_dont_know`, `rate_*` all routed |
 | H9 | card with 9 options | text and labels within limits |
+| H10 | `rate_*` click | routed to `onRating`; `isCorrect` recomputed on the server from `o`; calculator called once with the rating |
 
 ## MCP
 
@@ -126,7 +165,7 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | M1 | each tool calls the mapped route with the token | one test per tool in the table |
 | M2 | API 4xx | tool result has `isError` |
 | M3 | invalid input | rejected by zod before the HTTP call |
-| M4 | start and stop descriptions mention notifications | yes |
+| M4 | start and stop descriptions mention notifications; update and delete flashcard say draft only | yes |
 
 ## Non-functional checks
 
@@ -136,4 +175,4 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 
 ## Exit criteria per Roadmap task
 
-Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C17 and A1 to A9 pass.
+Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C28 and A1 to A9 pass.

@@ -33,12 +33,38 @@ The value never contains the correct answer. The server looks it up.
 ## Handler
 
 ```ts
-app.action(/^answer_/, async ({ ack, action, body, respond }) => {
+const answerValue = z.object({ c: z.string(), o: z.number().int().min(0).nullable() });
+const rateValue = z.object({ c: z.string(), o: z.number().int().min(0), r: z.enum(['hard', 'medium', 'easy']) });
+
+// Button values come from the client: never throw, log and ignore anything malformed.
+function parseValue<T>(schema: z.ZodType<T>, raw: unknown): T | null {
+  if (typeof raw !== 'string') return null;
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parsed = schema.safeParse(json);
+  return parsed.success ? parsed.data : null;
+}
+
+app.action(/^answer_/, async ({ ack, action, body, respond, logger }) => {
   await ack();                                   // first, within 3 seconds
-  const v = valueSchema.parse(JSON.parse(action.value)); // zod; value comes from the client
+  const v = parseValue(answerValue, 'value' in action ? action.value : undefined);
+  if (!v) return logger.warn({ user: body.user.id, action: action.action_id }, 'ignored malformed answer value');
   await answerService.onAnswer({ slackUserId: body.user.id, ...v, respond });
 });
+
+app.action(/^rate_/, async ({ ack, action, body, respond, logger }) => {
+  await ack();
+  const v = parseValue(rateValue, 'value' in action ? action.value : undefined);
+  if (!v) return logger.warn({ user: body.user.id, action: action.action_id }, 'ignored malformed rating value');
+  await answerService.onRating({ slackUserId: body.user.id, ...v, respond });
+});
 ```
+
+`answerService.onAnswer` handles the first click: wrong or "Don't know" calls the calculator at once; a right answer only shows the Hard / Medium / Easy buttons and stores nothing. `onRating` is the second click: it recomputes `isCorrect` on the server from `o` (the value never carries the answer), then calls the calculator with the rating. A rating for an answer that is not correct is ignored by the calculator ([decision 0004](../decisions/0004-right-answer-requires-rating.md)). A failed parse does nothing and shows nothing to the student; the message stays as it is.
 
 The service checks the clicker owns the card, `sent_at` is set, and the message `ts` matches `message_ts`. After a reminder the card has a new `message_ts`; a click on the older message gets "sent again, use the latest message" ([scheduler.md](../scheduler.md#unanswered-cards)). After the outcome it calls `respond({ replace_original: true, ... })` (5 uses within 30 minutes). Two fast clicks can still arrive together, so the reviews unique key is the real lock.
 
@@ -51,7 +77,7 @@ Outcome messages:
 
 - On `POST /courses/:id/students`: `users.lookupByEmail` (needs `users:read.email`, Tier 3, about 50 per minute) fills `slack_id`; space calls out or rely on the client's 429 retry. `users_not_found` leaves `slack_id` null and the API reports `slack_matched: false`.
 - `chat.postMessage({ channel: slackUserId })` opens the DM with only `chat:write`. No `conversations.open` and no `im:write`. Cache the returned `D…` channel in `users.slack_dm_channel`.
-- `channel_not_found` means the app cannot DM that user; log it and mark the student as unreachable in the teacher view.
+- `channel_not_found` means the app cannot DM that user; log it for now. Showing unreachable students to the teacher is an idea for later ([implementation-plan.md](../implementation-plan.md#risks-and-ideas)).
 - Timezone: `users.info` gives `tz`; needs `users:read`, already in the manifest.
 
 ## Course notifications

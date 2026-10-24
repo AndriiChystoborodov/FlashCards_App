@@ -45,10 +45,10 @@ Serve with `serveStdio(() => server)` from `@modelcontextprotocol/server/stdio` 
 | `start_course` | `POST /courses/:courseId/start` | notifies students; say so in the description |
 | `stop_course` | `POST /courses/:courseId/stop` | notifies students |
 | `delete_course` | `DELETE /courses/:courseId` | destructive, draft only |
-| `add_flashcards` | `POST /courses/:courseId/flashcards` | batch, with `is_assessment` |
+| `add_flashcards` | `POST /courses/:courseId/flashcards` | batch, with `is_assessment`; after start only non-assessment cards |
 | `list_flashcards` | `GET /courses/:courseId/flashcards` | |
-| `update_flashcard` | `PATCH /flashcards/:flashcardId` | mark or unmark assessment |
-| `delete_flashcard` | `DELETE /flashcards/:flashcardId` | |
+| `update_flashcard` | `PATCH /flashcards/:flashcardId` | mark or unmark assessment; draft courses only |
+| `delete_flashcard` | `DELETE /flashcards/:flashcardId` | draft courses only |
 | `enroll_students` | `POST /courses/:courseId/students` | looks up Slack ids |
 | `list_students` | `GET /courses/:courseId/students` | |
 | `get_class_progress` | `GET /courses/:courseId/progress` | |
@@ -56,7 +56,7 @@ Serve with `serveStdio(() => server)` from `@modelcontextprotocol/server/stdio` 
 
 Not exposed: the two student routes. Students answer in Slack.
 
-Tool descriptions should say which actions send messages to students (`start_course`, `stop_course`) so the agent asks the teacher first.
+Tool descriptions for `update_flashcard` and `delete_flashcard` say "draft courses only" ([decision 0016](decisions/0016-flashcards-frozen-after-start.md)); an error from a running course comes back as `isError` with the 409 code. Tool descriptions should say which actions send messages to students (`start_course`, `stop_course`) so the agent asks the teacher first.
 
 ## Auth to the REST API
 

@@ -37,6 +37,6 @@
 
 ## Definitions
 
-- Learned card: the student's last two answers to it (the same card, answered again on repetition) in a row were right and rated Medium or Easy. A card passed in the initial assessment (right + Easy) counts as learned immediately.
+- Learned card: the student's last two answers to it (the same card, answered again on repetition) in a row were right and rated Medium or Easy, and the latest of them came at least 7 days after the previous review of that card. A card passed in the initial assessment (right + Easy) counts as learned immediately.
 - Student progress: learned cards / all cards in the course. 100% means every card is learned, or the student passed the initial assessment threshold and is exempt.
 - Class progress: the average of student progress over all enrolled students.

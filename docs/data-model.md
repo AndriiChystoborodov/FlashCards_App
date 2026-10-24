@@ -51,6 +51,7 @@ PK `(course_id, user_id)`.
 | completed_at | timestamptz null | set with `completed` |
 | completed_progress | numeric null | progress percent frozen when `completed` is set |
 | enrolled_at | timestamptz | |
+| removed_at | timestamptz null | soft delete ([decision 0017](decisions/0017-enrollment-soft-delete.md)); null for a present student |
 | assessment_done_at | timestamptz null | set once, when the last assessment card is answered |
 | assessment_score | numeric null | passed / all, stored for the teacher view |
 
@@ -73,7 +74,7 @@ PK `(course_id, user_id)`.
 | material_url | text null | |
 | position | int | introduction order for new cards |
 
-A card with answers is immutable once any `card_states` row exists for it. Teachers delete and recreate.
+Cards can be edited or deleted only while the course is `draft`. After start only new cards can be added, and they cannot be assessment cards ([decision 0016](decisions/0016-flashcards-frozen-after-start.md)).
 
 ## card_states
 
@@ -118,8 +119,10 @@ Unique `(user_id, flashcard_id, delivery_sent_at)`: a second click on the same d
 
 ## Derived values
 
+- Present enrollment: `removed_at is null`. Removed students get no cards, are not in class progress, `student_count` or the student lists. One shared predicate in the repository.
 - Student progress: `learned_at is not null` count / cards in the course, as a percentage, for `active` enrollments.
-- Class progress: average of student progress over enrollments.
+- Class progress: average of student progress over present enrollments.
+- Waiting since: `sent_at` of the student's open card in the course, null if none; exposed as `waiting_since` in the progress endpoints.
 - Open card: `sent_at is not null`. A student with an open card gets no other card; the card never disappears by being ignored, it is re-sent by the reminder rule ([scheduler.md](scheduler.md#unanswered-cards)).
 - Ready to send: `learned_at is null and due <= end of the student's local day and sent_at is null`.
 - Progress: `completed_progress` for `completed`, 100 for `exempt`, otherwise learned / total.

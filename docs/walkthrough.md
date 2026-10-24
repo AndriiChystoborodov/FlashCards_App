@@ -29,15 +29,17 @@ Course "Security basics": 10 cards, 3 of them assessment, `assessment_pass_thres
 
 ## 2. Assessment (Monday)
 
-Ann receives the three assessment cards, one after another (decision 0008), and answers all three around 14:00. Each message (shown with the card above; in this part the ids are `card-a1` to `card-a3`):
+Ann receives the three assessment cards, one after another (decision 0008), and answers all three around 14:00. The three assessment cards are different cards from `card-1` above (ids `card-a1` to `card-a3`). The first, A1, has its own question. Its message:
 
 ```
-How soon must a security incident be reported?
-1. Within 1 hour
-2. Within 24 hours
-3. Within 7 days
+Who must approve a purchase above 5,000?
+1. The department head
+2. Any manager
+3. The purchasing clerk
 [1] [2] [3] [Don't know]
 ```
+
+A1's `correct_option` is 0 ("The department head").
 
 Ann clicks `1`. The handler acks, parses `{"c":"card-a1","o":0}`, sees the answer is right (the server knows; the button never did), and replaces the message with "Right. How hard was it?" and `[Hard] [Medium] [Easy]`. She clicks Easy: `{"c":"card-a1","o":0,"r":"easy"}`. `applyAnswer` runs; a review row is stored; the message is replaced with the outcome.
 
@@ -61,19 +63,23 @@ Right after the assessment, on Monday at about 14:05, the answer handler calls `
 
 **Wednesday 09:00 tick:** card-1 (`due` Wednesday 14:06) and A2 are both due today. A2 (`due` 14:03) comes first, then card-1 (`due` 14:06): the order is by `due`.
 
-**card-1, Wednesday 09:15:** right, Medium again. Grade Good, `scheduled_days` 11 (stability 10.96, difficulty 2.11), `correct_streak` 2 = `LEARNED_STREAK`, so `learned_at` = Wednesday. The card is never sent again, although FSRS would have scheduled it 11 days out; the learned flag wins.
+**card-1, Wednesday 09:15:** right, Medium again. Grade Good, `scheduled_days` 11 (stability 10.96, difficulty 2.11), `correct_streak` 2. The gap since the previous review (Monday 14:06) is about 1.8 days, less than `MIN_RETENTION_DAYS` (7), so the card is **not learned** ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). FSRS `due` would be Sunday 18 January 09:15, but the course ends on Friday 16 January, so `due` is clamped to the end of Thursday 15 January, the day before `ends_at`.
+
+**card-1, Thursday 15 January, 09:20:** right, Medium. Gap since Wednesday 09:15 is 8.0 days, at least 7. `correct_streak` 3 (at least 2), so `learned_at` = Thursday 15 January. The card is never sent again. Without the clamp, FSRS would have scheduled it after the course and this last review would not have happened.
 
 **Other paths for another card:**
 
 | answers | scheduled_days | correct_streak | learned |
 | --- | --- | --- | --- |
-| Easy, Easy | 8, 66 | 1, 2 | on 2nd answer |
+| Easy, Easy (second answer 8 days later) | 8, 66 | 1, 2 | on 2nd answer, gap 8 days |
 | Hard, Hard, Good | 1, 3, 9 | 0, 0, 1 | no |
 | Good, Again | 2, 1 | 1, 0 | no |
 
 The assessment cards: A2 (right + Medium on Monday, about 14:03) is due in 2 days (Wednesday) with streak 1. A3 ("Don't know", about 14:05) is due the next day (Tuesday) with streak 0, stability 0.21, difficulty 6.41.
 
 ## 4. Progress
+
+> **Not reachable in this course.** The "10 / 10" path below cannot happen here under the current rules. The course is 12 days long, new cards are spread over the whole course, and a card needs a 7-day gap between its last two reviews. Cards introduced in the second half cannot be learned before `ends_at`, so even a perfect Medium student ends below 100% (the user's estimate: about 5 of 10 learned). The real outcome is `completed` at `ends_at` with `completed_progress` well under 100. The 10 / 10 sentence stays only to show the mechanism. See the open question in [scheduler.md](scheduler.md#selecting-the-next-card).
 
 After Ann has learned A1, card-1 and 2 more cards: progress = 4 / 10 = 40%. Tom's `get_class_progress` returns Ann at 40 and the class average over all enrolled students. At 10 / 10 her enrollment becomes `completed` with `completed_progress` 100 and she gets a DM. If the course reached `ends_at` with 6 of 10 learned, she would become `completed` with `completed_progress` 60.
 
