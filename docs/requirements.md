@@ -11,7 +11,7 @@
 - A flashcard links to a course.
 - A flashcard links to material.
 - A course links to material.
-- The student selects an effort level: Easy, Hard, Medium.
+- The student selects an effort level: Easy, Medium, Hard.
 - Based on the initial assessment and all previous answers, the student gets more flashcards during the course.
 - The teacher sees the progress of each student and of the class as a percentage. 100% means the student knows the material.
 
@@ -37,6 +37,6 @@
 
 ## Definitions
 
-- Learned card: the student's last two answers to it ( same card after reetition ) in a row were right and rated Medium or Easy. A card passed in the initial assessment (right + Easy) counts as learned immediately.
+- Learned card: the student's last two answers to it (the same card, answered again on repetition) in a row were right and rated Medium or Easy. A card passed in the initial assessment (right + Easy) counts as learned immediately.
 - Student progress: learned cards / all cards in the course. 100% means every card is learned, or the student passed the initial assessment threshold and is exempt.
 - Class progress: the average of student progress over all enrolled students.
