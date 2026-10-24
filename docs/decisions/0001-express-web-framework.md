@@ -2,7 +2,7 @@
 
 ## Context
 
-The REST API (teacher/MCP side) and the Slack integration need a web server. The team is one person. The MVP has database and a load of about 1,000 students in one class.
+The REST API (teacher/MCP side) and the Slack integration need a web server. The team is one person. The MVP will have a database (from the data tasks; Roadmap Tasks 1 and 2 have none) and a load of about 1,000 students in one class.
 
 ## Options
 
@@ -23,5 +23,6 @@ Express.
 ## Not now
 
 - No Redis (no queue or cache need yet).
+- No rate limiter (see AGENTS.md Stack).
 
 Revisit when load, background jobs or abuse protection become real requirements.
