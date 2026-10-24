@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output (TypeScript)
+dist/
+build/
+*.tsbuildinfo
+
+# Environment / secrets (Supabase DB URL, Slack tokens, etc.)
+.env
+.env.*
+!.env.example
+
+# Tests (vitest)
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Railway CLI
+.railway/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
