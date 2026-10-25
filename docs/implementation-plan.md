@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Nothing here is built. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Task 1 (project setup) is built ([decision 0019](decisions/0019-env-config-and-tooling.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -14,7 +14,7 @@ Design phase output, 2026-10-24. Nothing here is built. Read `AGENTS.md` first; 
 | MCP for teachers | [mcp-teacher-api.md](mcp-teacher-api.md) |
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0018 |
+| Decisions | [decisions/](decisions/) 0002 to 0019 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 

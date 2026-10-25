@@ -42,7 +42,7 @@ Instructions for AI coding agents are in [AGENTS.md](AGENTS.md).
 
 ## Run locally
 
-Not runnable yet. Once Task 1 is done:
+Task 1 (setup) is done: `npm run dev` validates the env and prints the config. The bot is not built yet (Task 2).
 
 1. Node.js 20 or newer.
 2. `npm install`
