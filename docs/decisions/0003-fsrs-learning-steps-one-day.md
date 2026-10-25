@@ -12,6 +12,8 @@ ts-fsrs defaults (`enable_short_term: true`, steps `1m, 10m`) return a new card 
 
 ## Choice
 
+Chosen by the user on 2026-10-24.
+
 The third option: `learning_steps: ['1d']`, `relearning_steps: ['1d']`, `enable_fuzz: false` in config and tests.
 
 ## Why

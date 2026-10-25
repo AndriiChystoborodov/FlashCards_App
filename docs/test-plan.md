@@ -29,11 +29,6 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | C21 | streak 2 with a short gap, then a third right Medium answer with gap of 7 or more days | streak 3, learned at the third |
 | C22 | streak 2, gap 7 or more days, but rating hard | streak 0, not learned |
 | C23 | state with no `last_review` (first answer) | gap condition fails, not learned |
-| C24 | FSRS `due` after `dueNotAfter` and `dueNotAfter > now` | `due = dueNotAfter`, other ts-fsrs fields unchanged |
-| C25 | FSRS `due` before `dueNotAfter` | `due` unchanged |
-| C26 | `dueNotAfter <= now` (answer on the last day) | not clamped |
-| C27 | `dueNotAfter` omitted | no clamp |
-| C28 | clamped card answered right + medium 5 days later, streak 2 | not learned (gap < 7) |
 | C7 | medium, hard, medium (any gaps) | streak 1, not learned |
 | C8 | easy, wrong, medium | streak 1 (wrong reset) |
 | C9 | already learned, then wrong (`learnedAt` was set by an earlier answer) | streak 0, `learnedAt` kept |
@@ -78,6 +73,10 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | S8 | learned card | never selected |
 | S36 | streak 2 with a short gap | card still due and selected again |
 | S37 | answer service computes `dueNotAfter` | end of the local day before `ends_at` in the student's timezone, including a timezone whose day differs from UTC |
+| S49 | new `due` after `dueNotAfter` and `dueNotAfter > now` | service clamps `due = dueNotAfter`; other fields unchanged |
+| S50 | new `due` before `dueNotAfter` | `due` unchanged |
+| S51 | `dueNotAfter <= now` (answer on the last day) | not clamped |
+| S52 | clamped card answered right + medium 5 days later, streak 2 | not learned (gap < 7) |
 | S38 | card introduced 5 days before `ends_at` | cannot become learned; progress shows it unlearned at `ends_at` |
 | S39 | removed student, tick | no card, no reminder, not completed at `ends_at` |
 | S40 | removal with an open card | Slack message replaced with "expired", `sent_at` and `message_ts` cleared, progress unchanged |
@@ -175,4 +174,4 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 
 ## Exit criteria per Roadmap task
 
-Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C28 and A1 to A9 pass.
+Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C23 and A1 to A9 pass. The `due` clamp (S37, S49 to S52) belongs to the answer service, Task 5.

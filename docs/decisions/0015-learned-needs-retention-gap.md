@@ -18,7 +18,7 @@ The second option. Chosen by the user on 2026-10-24.
 - `MIN_RETENTION_DAYS = 7` is a constant next to `LEARNED_STREAK` in `src/domain/fsrs.ts`.
 - If the streak is 2 or more but the gap is shorter, the card is not learned. The streak keeps counting and the card is asked again; it is learned at the first later right Medium or Easy answer that satisfies the gap.
 - `learnedAt` is set once and never cleared. A card passed in the assessment (right + Easy) is still learned at once (the existing exception).
-- If FSRS schedules `due` after the course end, `due` is clamped to the day before `ends_at`, so the card still gets a last review. The caller passes the limit; the calculator stays free of timezones ([fsrs-calculator.md](../fsrs-calculator.md#learned-and-the-retention-gap)). No clamp when that day is not after `now`.
+- If FSRS schedules `due` after the course end, `due` is clamped to the day before `ends_at`, so the card still gets a last review. The answer service does the clamp after `applyAnswer` returns; the calculator stays free of `ends_at` and timezones ([fsrs-calculator.md](../fsrs-calculator.md#clamping-due-in-the-answer-service)). No clamp when that day is not after `now`. (Amended 2026-10-25: first written as an optional `dueNotAfter` parameter of `applyAnswer`; moved to the service so the calculator is only FSRS, streak and the learned rule.)
 
 ## Why
 

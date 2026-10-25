@@ -61,11 +61,10 @@ export function applyAnswer(
   answer: Answer,
   now: Date,
   scheduler: FSRS = defaultScheduler,
-  dueNotAfter?: Date,                // end of the day before ends_at, computed by the service
 ): { state: CardState; review: Review };
 ```
 
-The scheduler is a default parameter ([decision 0009](decisions/0009-calculator-scheduler-default-param.md)). `now` is always passed in; the module never reads the clock. `dueNotAfter` is optional and comes from the caller, which knows `ends_at` and the student's timezone; the calculator itself has no timezone logic.
+The scheduler is a default parameter ([decision 0009](decisions/0009-calculator-scheduler-default-param.md)). `now` is always passed in; the module never reads the clock. The calculator knows nothing about `ends_at` or timezones; clamping `due` is the answer service's job ([below](#clamping-due-in-the-answer-service)).
 
 ## Rules
 
@@ -98,9 +97,9 @@ const isLearnedNow = rightMediumOrEasy && newStreak >= LEARNED_STREAK && gapMs >
 
 If the streak is 2 or more and the gap is too short, the card stays unlearned and the streak keeps counting; the first later right Medium or Easy answer with a long enough gap makes it learned. Hard, wrong and Don't know reset the streak, as before.
 
-### Clamping `due`
+### Clamping `due` in the answer service
 
-After `scheduler.next`, if `dueNotAfter` is given and `next.due > dueNotAfter` and `dueNotAfter > now`, set `due = dueNotAfter`. The service passes the end of the local day before `ends_at` (student timezone). Other ts-fsrs fields, including `scheduled_days`, are left as ts-fsrs returned them. When `dueNotAfter <= now` (the answer is given on the last day or later) nothing is clamped: a due in the past would make the card come straight back, and a due after `ends_at` is never sent anyway.
+Not part of `applyAnswer` ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). After `applyAnswer` returns, the answer service computes `dueNotAfter`, the end of the local day (student timezone) before `courses.ends_at`. If `state.due > dueNotAfter` and `dueNotAfter > now`, it sets `state.due = dueNotAfter` before saving. Other fields, including `scheduled_days`, stay as ts-fsrs returned them. When `dueNotAfter <= now` (the answer is given on the last day or later) nothing is clamped: a due in the past would make the card come straight back, and a due after `ends_at` is never sent anyway.
 
 A clamped card may be reviewed less than 7 days after the previous review and then cannot become learned at that review. This is accepted: progress shows it honestly.
 

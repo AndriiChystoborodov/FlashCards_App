@@ -37,7 +37,8 @@ erDiagram
 | title, material_url | text | |
 | status | text | `draft`, `active`, `finished` |
 | assessment_pass_threshold | int | percent, default 90 |
-| scheduled_start_at, starts_at, ends_at | timestamptz null | `starts_at` is the real start; `scheduled_start_at` is a plan |
+| ends_at | timestamptz | NOT NULL; required by the quota ([decision 0006](decisions/0006-new-cards-per-day.md)) |
+| scheduled_start_at, starts_at | timestamptz null | `starts_at` is the real start; `scheduled_start_at` is a plan |
 
 Replaces the old `sent_at` (no meaning).
 

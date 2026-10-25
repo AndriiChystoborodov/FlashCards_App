@@ -15,6 +15,6 @@ Default parameter. Chosen by the user on 2026-10-24.
 
 ## Why
 
-`next()` has no side effects, so one module-level instance is enough. The function stays pure and deterministic, and callers never think about it. The optional `dueNotAfter` limit ([decision 0015](0015-learned-needs-retention-gap.md)) is a further last parameter after `scheduler`.
+`next()` has no side effects, so one module-level instance is enough. The function stays pure and deterministic, and callers never think about it. `scheduler` is the last parameter. The `due` clamp from [decision 0015](0015-learned-needs-retention-gap.md) is not a parameter; the answer service applies it after the call.
 
 `CardState = Card & { correctStreak; learnedAt }` uses ts-fsrs's own `Card` type, so a ts-fsrs upgrade shows up as a type error.

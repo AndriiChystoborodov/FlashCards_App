@@ -45,9 +45,9 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | --- | --- | --- |
 | 1 Project setup | as in AGENTS.md; install **zod 4**; add `SLACK_MODE`, `TENANT_TIMEZONE` (name from `.env.example`), `SEND_HOUR`, `REMOVED_RETENTION_DAYS`, `STUDENT_ROUTES_ENABLED` (refused with `NODE_ENV=production`) to env | typecheck and test scripts pass |
 | 2 Slack spike | as in AGENTS.md; the buttons and values in [slack/integration.md](slack/integration.md) | manual run; click logged and message replaced |
-| 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C28, A1 to A9 |
+| 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C23, A1 to A9 |
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review` |
-| 5 Answer service | transaction: review insert, state update, assessment evaluation | S2 to S4, S10, S13, S14 |
+| 5 Answer service | transaction: review insert, state update, assessment evaluation | S2 to S4, S10, S13, S14, S37, S49 to S52 |
 | 6 Scheduler | selection, tick, idempotent send | S1 to S19 |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11 |
 | 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications | H1 to H9 |

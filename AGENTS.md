@@ -8,8 +8,10 @@ Teachers manage courses through an MCP client (Claude, Codex). Students get card
 Read these before changing anything:
 
 - `docs/requirements.md` — functional and non-functional requirements, what is out of scope
-- `docs/architecture.md` — the system diagram (Mermaid) and how it maps to the MVP
-- `docs/data-model-and-api.md` — tables, types and REST endpoints
+- `docs/architecture.md` — the target system diagram (PNG and text). The MVP shape is in `docs/implementation-plan.md`
+- `docs/data-model.md` — tables and types
+- `docs/rest-api.md` — REST endpoints
+- `docs/implementation-plan.md` — index of all design docs, the MVP shape and the refined roadmap
 
 If code and docs disagree, stop and ask instead of picking one.
 
@@ -54,7 +56,7 @@ Second step of the spike: after a right answer, show Hard / Medium / Easy button
 A pure module in `src/domain/` with unit tests next to it. No database, no Express, no Slack imports.
 
 - `CardState` = every field of the ts-fsrs `Card` type, exactly as defined in the installed ts-fsrs version (check the type, don't copy a list from memory), plus our own fields: `correctStreak`, `learnedAt` (Date | null).
-- applyAnswer(card, state, answer, now): { state; review }
+- applyAnswer(card, state, answer, now, scheduler?): { state; review }. `scheduler` is an optional last parameter that defaults to the module's FSRS instance ([decision 0009](docs/decisions/0009-calculator-scheduler-default-param.md)). Clamping `due` to the course end is not done here; the answer service does it ([decision 0015](docs/decisions/0015-learned-needs-retention-gap.md)).
 - A new card's state comes from ts-fsrs `createEmptyCard(now)` plus `correctStreak: 0`, `learnedAt: null`.
 - `Answer` = `{ chosenOption: number | null; rating?: 'hard' | 'medium' | 'easy' }`; `null` means "Don't know".
 - `Review` = `{ chosenOption, isCorrect, rating: 'easy' | 'hard' | 'medium' | null, reviewedAt }`.
@@ -67,7 +69,7 @@ Rules:
 3. The next review date is computed by ts-fsrs (`scheduler.next(card, now, rating)`). Never implement FSRS math by hand.
 4. Tests use `enable_fuzz: false`, otherwise intervals are random.
 5. `correctStreak` = how many of the most recent answers in a row were right AND rated Medium or Easy. Right + Medium/Easy → +1. Right + Hard → reset to 0 (remembered with difficulty, so not counted). Wrong or "Don't know" (Again) → reset to 0.
-6. A card is learned when its `correctStreak >= 2` (the same flashcard, answered in a row on repetition); set `learnedAt = now` the first time it happens. A learned card is not sent again. Keep the threshold in one constant so it is easy to change.
+6. A card is learned when the current answer is right and rated Medium or Easy, `correctStreak >= 2` (the same flashcard, answered in a row on repetition) and `now - state.last_review` is at least 7 days ([decision 0015](docs/decisions/0015-learned-needs-retention-gap.md)); set `learnedAt = now` the first time it happens. A learned card is not sent again. Keep both thresholds (`LEARNED_STREAK`, `MIN_RETENTION_DAYS`) in constants so they are easy to change.
 7. Assessment answers go through the same calculator; the assessment rules below decide what happens after.
 8. `now` is always passed in, never read from the clock inside the module, so tests are deterministic.
 

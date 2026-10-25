@@ -14,6 +14,8 @@
 
 The third. `SLACK_MODE=socket|http`. Dev: our `express()` app serves REST and a separate Bolt `App({ socketMode: true })` runs in the same process. Prod: `ExpressReceiver({ signingSecret, app })`.
 
+Chosen by the user on 2026-10-24.
+
 ## Why
 
 Handlers, services and the Slack interface are identical in both modes. Only the construction in `src/slack/` differs. Update the wording of 0001 ("Bolt works on Express") to mean HTTP mode only.

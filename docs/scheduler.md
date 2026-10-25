@@ -34,7 +34,7 @@ next(enrollment, now):
 
 - `endOfLocalDay` is the end of the student's local day (from `users.tz`, fallback `TENANT_TIMEZONE`). Comparing `due` with `now` would be wrong: the tick runs once a day at `SEND_HOUR`, so a card answered at 14:00 and due in 3 days has `due` of 14:00 on day 3, which is after the 09:00 tick, and would wait until day 4. Anything due today is sent at the morning tick.
 - Learned (`learned_at` set) follows [decision 0015](decisions/0015-learned-needs-retention-gap.md): streak of 2 plus at least 7 days since the previous review. A card with a streak of 2 and a short gap is still due and is asked again.
-- The answer service passes `dueNotAfter` to `applyAnswer`: the end of the local day (student timezone) before `courses.ends_at`. FSRS dues after that are clamped to it, so every unlearned card gets a last review before the course ends. See [fsrs-calculator.md](fsrs-calculator.md#clamping-due).
+- After `applyAnswer`, the answer service clamps the new `due` to `dueNotAfter`: the end of the local day (student timezone) before `courses.ends_at`. FSRS dues after that are clamped to it, so every unlearned card gets a last review before the course ends. See [fsrs-calculator.md](fsrs-calculator.md#clamping-due-in-the-answer-service).
 - Not decided: what to do with cards introduced late; see the open question below. Until it is decided, late cards may stay unlearned and progress shows that honestly.
 - A card gets its `card_states` row when first sent (`newCardState(now)`), with `introduced_at = now` and `sent_at = now`.
 - `introduced_today` counts `introduced_at` inside the student's local day.
@@ -123,7 +123,7 @@ sequenceDiagram
 
 1. Handler `ack()`s, parses the button value, loads the card state and checks `sent_at` is set.
 2. Wrong or "Don't know": `applyAnswer` now. Right: show Hard / Medium / Easy, no state change.
-3. Rating click: `applyAnswer`, insert the review (unique key rejects repeats), update `card_states`, clear `sent_at`, replace the Slack message with the outcome.
+3. Rating click: `applyAnswer`, clamp `due` to the course end, insert the review (unique key rejects repeats), update `card_states`, clear `sent_at`, replace the Slack message with the outcome.
 4. If it was the last assessment card, `evaluateAssessment`.
 5. Call `next()` and send the next card if any.
 
