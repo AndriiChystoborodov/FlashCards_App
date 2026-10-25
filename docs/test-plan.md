@@ -1,6 +1,6 @@
 # Test plan
 
-Vitest. Tests sit next to the code for the domain; service and route tests under `tests/` or next to the service. AGENTS.md: write the tests after the implementation, one for each way the code resolves. Table ids (C1, S1, ...) are for traceability in commit messages.
+Vitest. Tests sit next to the code (`src/**/*.test.ts`, as `vitest.config.ts` discovers them), including service, route and repository tests (repository tests in `src/db/`). AGENTS.md: write the tests after the implementation, one for each way the code resolves. Table ids (C1, S1, ...) are for traceability in commit messages.
 
 ## Test levels
 
@@ -186,10 +186,10 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 1 Project setup | R20 (env validation; already in `src/config/env.test.ts`) |
 | 3 Calculator | C1 to C23, A1 to A9 |
 | 4 Schema and repositories | the round trip of `CardState` including null `last_review` (no id yet) |
-| 5 Answer service | S2 to S4, S10, S13, S14, S37, S49 to S52 |
-| 6 Scheduler | S1 to S19; also S21 to S30, S32, S35, S36, S38, S39, S43 to S48, S53 |
-| 7 REST API | R1 to R11; also R12 to R19, R21 to R29 |
+| 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52 |
+| 6 Scheduler | S1, S5 to S9, S11, S12, S15 to S19; also S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
+| 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40 |
 | 8 Slack wiring | H1 to H9; also H10 |
 | 9 MCP | M1 to M4 |
 
-Not assigned, see the open questions in [implementation-plan.md](implementation-plan.md#open-questions): S20, S31, S33, S34, S40, S41, S42.
+Assignment reasons: S31, S33, S34, S41 are answer-service checks on a click (no review stored, no state change), like S13 and S14; S42 is `next()` selection; S20 is the progress endpoints and S40 is the removal route, both in the REST API.
