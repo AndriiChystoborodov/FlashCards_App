@@ -17,7 +17,7 @@ Decision 0010 chose PostgreSQL on Supabase. After developer's review, asked for 
 
 ## Why
 
-A proof of concept needs no external account. Сloud setup distracts from the core (logic, data, endpoints, Slack); load balancer, scaling and hosting are hosting configuration that can be done later; for a proof of concept a local setup is enough.
+A proof of concept needs no external account. Cloud setup distracts from the core (logic, data, endpoints, Slack); load balancer, scaling and hosting are hosting configuration that can be done later; for a proof of concept a local setup is enough.
 
 ## Consequences
 

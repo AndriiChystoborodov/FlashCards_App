@@ -21,6 +21,7 @@ export function createControlledClock(start: Date): ControlledClock {
       current = date.getTime();
     },
     advanceDays: (days) => {
+      if (!Number.isFinite(days)) throw new RangeError(`advanceDays needs a finite number, got ${days}`);
       current += days * DAY_MS;
     },
   };

@@ -52,7 +52,7 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only) | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52 |
 | 6 Scheduler | selection, tick, idempotent send | S1, S5 to S9, S11, S12, S15 to S19, S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11, R12 to R19, R21 to R29, S20, S40 |
-| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications | H1 to H9, H10 |
+| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) | H1 to H9, H10 |
 | 9 MCP | [mcp-teacher-api.md](mcp-teacher-api.md) | M1 to M4 |
 
 Task 4a is proposed to sit right after Task 4 (numbering of the others is unchanged). After every task the scenario script runs and is extended.

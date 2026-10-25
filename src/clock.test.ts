@@ -22,6 +22,12 @@ describe('clock', () => {
     expect(clock.now()).toEqual(new Date('2026-01-14T22:00:00Z'));
   });
 
+  it.each([NaN, Infinity, -Infinity])('advanceDays rejects %s and keeps the time', (days) => {
+    const clock = createControlledClock(new Date('2026-01-12T10:00:00Z'));
+    expect(() => clock.advanceDays(days)).toThrow(RangeError);
+    expect(clock.now()).toEqual(new Date('2026-01-12T10:00:00Z'));
+  });
+
   it('set replaces the time, and returned dates are copies', () => {
     const clock = createControlledClock(new Date('2026-01-12T10:00:00Z'));
     clock.set(new Date('2026-02-01T00:00:00Z'));

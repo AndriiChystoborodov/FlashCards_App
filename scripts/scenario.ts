@@ -1,14 +1,20 @@
 import assert from 'node:assert/strict';
+import { getTableName, is } from 'drizzle-orm';
+import { PgTable } from 'drizzle-orm/pg-core';
 import { createControlledClock } from '../src/clock.js';
 import { env } from '../src/config/env.js';
 import { createDb } from '../src/db/client.js';
 import { resetDatabase } from '../src/db/reset.js';
+import * as schema from '../src/db/schema.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
 const url = env.DATABASE_URL;
 if (!url) throw new Error('DATABASE_URL is not set.');
 
-const TABLES = ['card_states', 'courses', 'enrollments', 'flashcards', 'reviews', 'users'];
+const TABLES = (Object.values(schema) as unknown[])
+  .filter((v): v is PgTable => is(v, PgTable))
+  .map((t) => getTableName(t))
+  .sort();
 const clock = createControlledClock(new Date('2026-01-12T10:00:00Z')); // Monday 10:00, walkthrough section 1
 
 interface Step {
@@ -19,14 +25,14 @@ interface Step {
 const steps: Step[] = [
   { name: 'reset: database rebuilt and migrated', run: () => resetDatabase(url) },
   {
-    name: 'schema: all six tables exist and are empty',
+    name: 'schema: every schema table exists and is empty',
     run: async () => {
       const { pool } = createDb(url);
       try {
         const tables = await pool.query<{ table_name: string }>(
           "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
         );
-        assert.deepEqual(tables.rows.map((r) => r.table_name), TABLES);
+        assert.deepEqual(tables.rows.map((r) => r.table_name).sort(), TABLES); // both sorted in JS, so database collation does not matter
         for (const t of TABLES) {
           const n = await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM "${t}"`);
           assert.equal(n.rows[0]?.n, 0, `table ${t} is not empty`);
@@ -61,7 +67,9 @@ for (const [i, step] of steps.entries()) {
     console.log(`ok   ${i + 1} ${step.name}`);
   } catch (err) {
     console.error(`FAIL ${i + 1} ${step.name}: ${err instanceof Error ? err.message : String(err)}`);
+    console.error(`${i} ok, failed at step ${i + 1} of ${steps.length}, ${pending.length} pending not run`);
     process.exit(1);
   }
 }
 for (const p of pending) console.log(`pending ${p}`);
+console.log(`${steps.length} ok, ${pending.length} pending`);
