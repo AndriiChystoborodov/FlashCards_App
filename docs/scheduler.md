@@ -37,7 +37,7 @@ next(enrollment, now):
 - After `applyAnswer`, the answer service clamps the new `due` to `dueNotAfter`: the end of the local day (student timezone) before `courses.ends_at`. FSRS dues after that are clamped to it, so every unlearned card gets a last review before the course ends. See [fsrs-calculator.md](fsrs-calculator.md#clamping-due-in-the-answer-service).
 - Not decided: what to do with cards introduced late; see the open question below. Until it is decided, late cards may stay unlearned and progress shows that honestly.
 - A card gets its `card_states` row when first sent (`newCardState(now)`), with `introduced_at = now` and `sent_at = now`.
-- `introduced_today` counts `introduced_at` inside the student's local day.
+- `introduced_today` counts `introduced_at` inside the student's local day, for non-assessment cards only (`flashcards.is_assessment = false`). Assessment cards also get `introduced_at` on their first send, but they are not counted: they ignore the quota and must not use it up.
 - Zero assessment cards in the course: `next()` sets `assessment_done_at = now`, leaves `assessment_score` null, and continues in normal mode in the same call. This is the same completion step as after the last assessment answer, minus the evaluation.
 - `quotaToday = ceil((remainingNew + introducedToday) / remainingDays)` ([decision 0006](decisions/0006-new-cards-per-day.md)), recalculated each day from the number of unintroduced non-assessment cards and the local days left through `ends_at`. Assessment cards are not counted.
 - Assessment cards ignore the quota; the student gets them all, one after another, before anything else.
@@ -95,7 +95,7 @@ Once per day (the first tick after local midnight of `TENANT_TIMEZONE`, tracked 
 On every tick, for each present (`removed_at is null`) active enrollment of an `active` course with no open card:
 
 1. Compute the local date and hour from `users.tz` (fallback `TENANT_TIMEZONE`) using `Intl.DateTimeFormat`.
-2. If local hour is at least `SEND_HOUR` (default 9) and no card was sent to this student today, run `next()` and send.
+2. If local hour is at least `SEND_HOUR` (default 9), run `next()` and send. There is no "already sent today" check: no column records it (`sent_at` is cleared on answer), and none is needed, because `next()` returns none once the day's due cards are done and the quota is used up, so repeating it every 15 minutes sends nothing new.
 
 If every student shares a timezone, one daily tick is enough; the per-student version costs only the tz lookup.
 

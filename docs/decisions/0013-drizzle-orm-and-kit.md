@@ -1,5 +1,7 @@
 # 0013. Query layer and migrations: Drizzle ORM with drizzle-kit
 
+Status: accepted. Chosen by the user; the user gave no date, so the date recorded here is 2026-10-25 (the day this status was written).
+
 ## Context
 
 [Decision 0010](0010-database-postgres-supabase.md) chose PostgreSQL on Supabase and left the query layer and the migration tool open. The code follows `routes → services → db` in strict TypeScript with no `any`. `CardState` maps one to one onto `card_states` ([fsrs-calculator.md](../fsrs-calculator.md)).
@@ -12,7 +14,7 @@
 
 ## Choice
 
-Drizzle ORM (`drizzle-orm`) with drizzle-kit for migrations. Chosen by the user on 2026-10-24.
+Drizzle ORM (`drizzle-orm`) with drizzle-kit for migrations. Chosen by the user (accepted 2026-10-25, see Status).
 
 ## Why
 

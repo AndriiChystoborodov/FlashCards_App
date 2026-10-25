@@ -36,8 +36,8 @@ erDiagram
 | teacher_id | uuid FK users | |
 | title, material_url | text | |
 | status | text | `draft`, `active`, `finished` |
-| assessment_pass_threshold | int | percent, default 90 |
-| ends_at | timestamptz | NOT NULL; required by the quota ([decision 0006](decisions/0006-new-cards-per-day.md)) |
+| assessment_pass_threshold | int | percent, default 90; editable only while the course is `draft` (the assessment is evaluated against it once the course has started) |
+| ends_at | timestamptz | NOT NULL; required by the quota ([decision 0006](decisions/0006-new-cards-per-day.md)); on an `active` course it can only be moved later |
 | scheduled_start_at, starts_at | timestamptz null | `starts_at` is the real start; `scheduled_start_at` is a plan |
 
 Replaces the old `sent_at` (no meaning).
@@ -96,7 +96,7 @@ Scheduler-only columns on the same row (not part of `CardState`):
 
 | column | notes |
 | --- | --- |
-| introduced_at | first send; counts toward the daily quota ([decision 0006](decisions/0006-new-cards-per-day.md)) |
+| introduced_at | first send. Counts toward the daily quota ([decision 0006](decisions/0006-new-cards-per-day.md)) only for non-assessment cards; the quota query filters `flashcards.is_assessment = false` |
 | sent_at | when the open question was sent; null when nothing is waiting. The card is open while it is set |
 | reminded_at | last reminder time, null if none |
 | reminder_count | reminders sent for this delivery, default 0 |

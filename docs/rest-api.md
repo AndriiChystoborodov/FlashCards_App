@@ -11,7 +11,7 @@ Auth: `Authorization: Bearer <token>`. Middleware maps the token to a teacher (`
 | `POST /courses` | `{ title, material_url, ends_at, scheduled_start_at?, assessment_pass_threshold? }` creates a `draft`; `ends_at` is required |
 | `GET /courses` | list with `card_count`, `assessment_card_count`, `student_count` |
 | `GET /courses/:courseId` | one course, same shape |
-| `PATCH /courses/:courseId` | any of `title, material_url, scheduled_start_at, ends_at, assessment_pass_threshold`; `draft` and `active` only |
+| `PATCH /courses/:courseId` | any of `title, material_url, scheduled_start_at, ends_at, assessment_pass_threshold`; `draft` and `active` only (`finished`: 409 `course_finished`). On an `active` course `assessment_pass_threshold` cannot be changed (409 `threshold_locked`) and `ends_at` can only be moved later (409 `ends_at_shortened` if the new value is earlier than the current one). |
 | `POST /courses/:courseId/start` | `draft` to `active`; DM to enrolled students. 409 if there are no cards. |
 | `POST /courses/:courseId/stop` | `active` to `finished`; active enrollments become `completed` ([decision 0011](decisions/0011-enrollment-completed.md)); DM to students |
 | `DELETE /courses/:courseId` | `draft` only; otherwise 409 (use stop) |

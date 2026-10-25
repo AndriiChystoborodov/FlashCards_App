@@ -66,6 +66,7 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | S5 | due card and new card | due first |
 | S6 | quota reached for today (`introducedToday` equals `quotaToday`) | no more new cards |
 | S24 | quota formula: (7 remaining, 12 days left), (7, 1), (0, 5) | 1, 7, 0 |
+| S53 | assessment cards sent today (`introduced_at` set), 7 non-assessment cards remain, 12 days left | `introducedToday` is 0, quota 1, one new card may be introduced |
 | S25 | quota stays constant during a day while cards are introduced | `introducedToday + remaining` unchanged, same quota |
 | S26 | student skips two days | next quota rises accordingly, course still ends on time |
 | S27 | card added mid-course | quota rises; `ends_at` already passed gives remainingDays 1 |
@@ -137,6 +138,10 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 | R23 | card sent, then `MAX_REMINDERS` reminders pass with no answer; `GET /courses/:courseId/students/:studentId/progress` and the class `GET /courses/:courseId/progress` | the student's `waiting_since` equals the open card's original `sent_at` (reminders do not change it); no new card was sent |
 | R24 | the student then answers the card | `waiting_since` is null in both endpoints |
 | R25 | open card, then the student is removed | the student is gone from the lists; after a restore `waiting_since` is null until the voided card is sent again |
+| R26 | PATCH `assessment_pass_threshold` on an `active` course | 409 `threshold_locked`, value unchanged |
+| R27 | PATCH `ends_at` to an earlier value on an `active` course | 409 `ends_at_shortened`, value unchanged |
+| R28 | PATCH `ends_at` to a later value on an `active` course; PATCH `ends_at` and `assessment_pass_threshold` on a `draft` course | 200, values saved |
+| R29 | PATCH any field on a `finished` course | 409 `course_finished` |
 | R8 | enroll with and without Slack match | `slack_matched` true and false |
 | R9 | review without rating on a right answer | 400 |
 | R10 | review with rating on a wrong answer | 200, rating null |
@@ -175,3 +180,16 @@ Vitest. Tests sit next to the code for the domain; service and route tests under
 ## Exit criteria per Roadmap task
 
 Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C23 and A1 to A9 pass. The `due` clamp (S37, S49 to S52) belongs to the answer service, Task 5.
+
+| task | test ids |
+| --- | --- |
+| 1 Project setup | R20 (env validation; already in `src/config/env.test.ts`) |
+| 3 Calculator | C1 to C23, A1 to A9 |
+| 4 Schema and repositories | the round trip of `CardState` including null `last_review` (no id yet) |
+| 5 Answer service | S2 to S4, S10, S13, S14, S37, S49 to S52 |
+| 6 Scheduler | S1 to S19; also S21 to S30, S32, S35, S36, S38, S39, S43 to S48, S53 |
+| 7 REST API | R1 to R11; also R12 to R19, R21 to R29 |
+| 8 Slack wiring | H1 to H9; also H10 |
+| 9 MCP | M1 to M4 |
+
+Not assigned, see the open questions in [implementation-plan.md](implementation-plan.md#open-questions): S20, S31, S33, S34, S40, S41, S42.

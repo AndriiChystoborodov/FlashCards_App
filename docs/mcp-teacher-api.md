@@ -41,7 +41,7 @@ Serve with `serveStdio(() => server)` from `@modelcontextprotocol/server/stdio` 
 | `create_course` | `POST /courses` | creates a draft |
 | `list_courses` | `GET /courses` | counts included |
 | `get_course` | `GET /courses/:courseId` | |
-| `update_course` | `PATCH /courses/:courseId` | incl. `assessment_pass_threshold` |
+| `update_course` | `PATCH /courses/:courseId` | incl. `assessment_pass_threshold` (draft only); on an `active` course only `ends_at` moving later is accepted for these two fields |
 | `start_course` | `POST /courses/:courseId/start` | notifies students; say so in the description |
 | `stop_course` | `POST /courses/:courseId/stop` | notifies students |
 | `delete_course` | `DELETE /courses/:courseId` | destructive, draft only |

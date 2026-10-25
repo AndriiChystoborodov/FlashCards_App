@@ -55,7 +55,7 @@ After A3 (about 14:05), `evaluateAssessment` runs once: score 1/3 = 33% < 90%, s
 
 ## 3. Normal mode (Tuesday onward)
 
-Right after the assessment, on Monday at about 14:05, the answer handler calls `next()`: nothing is due today, so it introduces new non-assessment cards by `position`, one at a time, starting with `card-1`. Quota for Monday: 7 non-assessment cards remain and 12 local days are left (Monday to the Friday of the next week, inclusive, weekends counted), so `ceil(7 / 12)` = 1 card. Ann gets only `card-1`.
+Right after the assessment, on Monday at about 14:05, the answer handler calls `next()`: nothing is due today, so it introduces new non-assessment cards by `position`, one at a time, starting with `card-1`. Quota for Monday: 7 non-assessment cards remain and 12 local days are left (Monday to the Friday of the next week, inclusive, weekends counted), so `ceil((7 + 0) / 12)` = 1 card. `introducedToday` is 0: the three assessment cards sent earlier that day are not counted ([scheduler.md](scheduler.md#selecting-the-next-card)). Ann gets only `card-1`.
 
 **card-1, Monday 14:06:** right, Medium. FSRS grade Good. `scheduled_days` 2 (stability 2.31, difficulty 2.12), `correct_streak` 1, `due` Wednesday 14:06.
 

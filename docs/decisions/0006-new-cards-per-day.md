@@ -21,7 +21,7 @@ quotaToday    = ceil((remainingNew + introducedToday) / remainingDays)
 may introduce = quotaToday - introducedToday   (never below 0)
 ```
 
-`introducedToday` counts `card_states.introduced_at` inside the student's local day. It is added back so the quota stays the same all day and does not shrink after each send.
+`introducedToday` counts `card_states.introduced_at` inside the student's local day, for non-assessment cards only (a clarification of 2026-10-25: without it the assessment cards sent on day one would use up the quota and the student would get no new card that day). It is added back so the quota stays the same all day and does not shrink after each send.
 
 Assessment cards are not counted: they are all sent first, and the ones not passed continue as ordinary FSRS cards, not as new cards.
 

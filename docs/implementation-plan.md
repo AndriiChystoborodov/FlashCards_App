@@ -43,14 +43,14 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 
 | task | content | done when |
 | --- | --- | --- |
-| 1 Project setup | as in AGENTS.md; install **zod 4**; add `SLACK_MODE`, `TENANT_TIMEZONE` (name from `.env.example`), `SEND_HOUR`, `REMOVED_RETENTION_DAYS`, `STUDENT_ROUTES_ENABLED` (refused with `NODE_ENV=production`) to env | typecheck and test scripts pass |
+| 1 Project setup | as in AGENTS.md; install **zod 4**; add `SLACK_MODE`, `TENANT_TIMEZONE` (name from `.env.example`), `SEND_HOUR`, `REMOVED_RETENTION_DAYS`, `STUDENT_ROUTES_ENABLED` (refused with `NODE_ENV=production`) to env | typecheck and test scripts pass; R20 |
 | 2 Slack spike | as in AGENTS.md; the buttons and values in [slack/integration.md](slack/integration.md); record in [slack/spike.md](slack/spike.md), [decision 0020](decisions/0020-slack-spike-choices.md) | manual run; click logged and message replaced |
 | 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C23, A1 to A9 |
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review` |
 | 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only) | S2 to S4, S10, S13, S14, S37, S49 to S52 |
-| 6 Scheduler | selection, tick, idempotent send | S1 to S19 |
-| 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11 |
-| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications | H1 to H9 |
+| 6 Scheduler | selection, tick, idempotent send | S1 to S19, S21 to S30, S32, S35, S36, S38, S39, S43 to S48, S53 |
+| 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11, R12 to R19, R21 to R29 |
+| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications | H1 to H9, H10 |
 | 9 MCP | [mcp-teacher-api.md](mcp-teacher-api.md) | M1 to M4 |
 
 Tasks 5 and 6 can swap; 7 and 9 only need 4 and 5. Tasks 1 to 3 are the first sessions. Each task is a commit with docs updated.
@@ -71,6 +71,8 @@ Tasks 5 and 6 can swap; 7 and 9 only need 4 and 5. Tasks 1 to 3 are the first se
 All earlier open questions are decided: one deployment per tenant ([0012](decisions/0012-one-deployment-per-tenant.md)), Drizzle ([0013](decisions/0013-drizzle-orm-and-kit.md)), hashed teacher token ([0014](decisions/0014-teacher-token-hashed.md)), course end ([0011](decisions/0011-enrollment-completed.md)), new cards join the pool ([0006](decisions/0006-new-cards-per-day.md)).
 
 **Open, decide before Task 6 (scheduler):** short courses cannot finish. With the quota spread over the whole course ([0006](decisions/0006-new-cards-per-day.md)) and the 7-day retention gap ([0015](decisions/0015-learned-needs-retention-gap.md)), a perfect Medium student in the walkthrough's 12-day course can learn only about 5 of 10 cards (the user's estimate). Options: (1) stop new cards `INTRO_CUTOFF_DAYS` (10) before `ends_at`; (2) scale `MIN_RETENTION_DAYS` with course length; (3) require courses of about 4 weeks or more. Details in [scheduler.md](scheduler.md#selecting-the-next-card).
+
+**Open, which Roadmap task owns these test ids** (the docs do not say; see [test-plan.md](test-plan.md#exit-criteria-per-roadmap-task)): S20 (progress and class progress: answer service, REST progress endpoints or a repository query?), S31, S33, S34 (the answer to a click on a completed, re-sent or reminded card: answer service in Task 5 or Slack wiring in Task 8?), S40 and S42 (removal with an open card and restore: REST in Task 7, scheduler in Task 6, or a separate enrollment service?), S41 (click on the expired message: Task 5 or 8?).
 
 Still to do before real data: close the Supabase Data API exposure ([0010](decisions/0010-database-postgres-supabase.md)), script the per-tenant setup before a second customer, and script teacher token issuing.
 
