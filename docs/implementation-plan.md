@@ -14,7 +14,7 @@ Design phase output, 2026-10-24. Task 1 (project setup) is built ([decision 0019
 | MCP for teachers | [mcp-teacher-api.md](mcp-teacher-api.md) |
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0019 |
+| Decisions | [decisions/](decisions/) 0002 to 0020 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -44,7 +44,7 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | task | content | done when |
 | --- | --- | --- |
 | 1 Project setup | as in AGENTS.md; install **zod 4**; add `SLACK_MODE`, `TENANT_TIMEZONE` (name from `.env.example`), `SEND_HOUR`, `REMOVED_RETENTION_DAYS`, `STUDENT_ROUTES_ENABLED` (refused with `NODE_ENV=production`) to env | typecheck and test scripts pass |
-| 2 Slack spike | as in AGENTS.md; the buttons and values in [slack/integration.md](slack/integration.md) | manual run; click logged and message replaced |
+| 2 Slack spike | as in AGENTS.md; the buttons and values in [slack/integration.md](slack/integration.md); record in [slack/spike.md](slack/spike.md), [decision 0020](decisions/0020-slack-spike-choices.md) | manual run; click logged and message replaced |
 | 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C23, A1 to A9 |
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review` |
 | 5 Answer service | transaction: review insert, state update, assessment evaluation | S2 to S4, S10, S13, S14, S37, S49 to S52 |
