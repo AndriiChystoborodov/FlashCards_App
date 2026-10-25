@@ -1,5 +1,7 @@
 # 0014. Teacher API token stored hashed in the database
 
+> **Superseded in part (decision 0023, 2026-10-25):** Supabase Auth is not planned any more. The token in the database stays for now and remote MCP / OAuth are postponed.
+
 ## Context
 
 The REST API needs to know which teacher calls it. The MCP server uses a bearer token from the environment ([decision 0007](0007-mcp-stdio-thin-client.md)). Supabase Auth is the later option for a remote server.

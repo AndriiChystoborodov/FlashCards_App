@@ -2,7 +2,7 @@
 
 Replaces the draft in `data-model-and-api.md` (deleted from the working tree; still in git history). The calculator defines `card_states`; the schema follows it ([fsrs-calculator.md](fsrs-calculator.md)).
 
-Conventions: snake_case, uuid primary keys, `timestamptz`, options and answers 0-based. Engine: PostgreSQL on Supabase, used as plain Postgres ([decision 0010](decisions/0010-database-postgres-supabase.md)). One deployment per tenant ([decision 0012](decisions/0012-one-deployment-per-tenant.md)), so there is no tenant id. Queries and migrations use Drizzle ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)).
+Conventions: snake_case, uuid primary keys, `timestamptz`, options and answers 0-based. Engine: PostgreSQL, local Docker first, Railway later ([decision 0023](decisions/0023-local-first.md), which supersedes the Supabase hosting of [0010](decisions/0010-database-postgres-supabase.md)). One deployment per tenant ([decision 0012](decisions/0012-one-deployment-per-tenant.md)), so there is no tenant id. Queries and migrations use Drizzle ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)).
 
 ```mermaid
 erDiagram
@@ -136,16 +136,10 @@ Unique `(user_id, flashcard_id, delivery_sent_at)`: a second click on the same d
 
 ## Implementation
 
-Code in `src/db/` ([decision 0022](decisions/0022-task4-schema-choices.md)): `schema.ts` (all tables, row level security on), `mappers.ts` (`CardState` <-> columns, `last_review` undefined <-> NULL), `client.ts`, and the repositories. Migrations are in `drizzle/`.
+Code in `src/db/` ([decision 0022](decisions/0022-task4-schema-choices.md)): `schema.ts` (all tables, row level security on, see Hosting), `mappers.ts` (`CardState` <-> columns, `last_review` undefined <-> NULL), `client.ts`, and the repositories. Migrations are in `drizzle/`.
 
-Local test database: `npm run db:up`, then `TEST_DATABASE_URL=postgres://retain:retain@localhost:5433/retain_test npm test`.
+Local database: `npm run db:up`. `.env.example` points `DATABASE_URL` and `TEST_DATABASE_URL` at the same compose database `retain_test` (the only one compose creates; a separate dev database is an open question).
 
-### Applying the migration to Supabase
+### Hosting
 
-Not done yet (Supabase was not ready when Task 4 was built). With `DATABASE_URL` in `.env` set to the session pooler string (port 5432, user `postgres.<project-ref>`; never port 6543), run `npm run db:migrate`. Then verify the Data API closure from decision 0010 with an unauthenticated request, using the project's public anon key:
-
-```bash
-curl -s -H "apikey: $ANON_KEY" "https://<project-ref>.supabase.co/rest/v1/users?select=*"
-```
-
-Expected: `[]` or a permission error, never rows. Run it for each table.
+Local Postgres from `docker-compose.yml` for now; managed Postgres on Railway later ([decision 0023](decisions/0023-local-first.md)). Row level security is enabled on every table in the migration; it was added to close the Supabase Data API and no current doc needs it otherwise (open question in decision 0023).

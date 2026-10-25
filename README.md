@@ -4,7 +4,7 @@ Spaced-repetition app for company and university courses, delivered in Slack.
 
 Teachers manage courses from an AI agent (Claude, Codex) through an MCP server. Students get one card at a time in a Slack DM and answer with a click. The schedule adapts to each student with the FSRS algorithm, so they see what they don't know more often and what they know less often.
 
-**Status:** design phase. The design is documented; implementation has not started.
+**Status:** implementation in progress (Tasks 1 to 4 done). Local first: Node.js and Docker Postgres ([decision 0023](docs/decisions/0023-local-first.md)).
 
 ## How it works
 
@@ -16,7 +16,7 @@ Teachers manage courses from an AI agent (Claude, Codex) through an MCP server. 
 
 ## Stack
 
-TypeScript on Node.js · Express · Slack Bolt · ts-fsrs · PostgreSQL on Supabase · Drizzle ORM · MCP TypeScript SDK v2 · zod 4 · Vitest
+TypeScript on Node.js · Express · Slack Bolt · ts-fsrs · PostgreSQL (local Docker first) · Drizzle ORM · MCP TypeScript SDK v2 · zod 4 · Vitest
 
 Every choice is explained in [docs/decisions/](docs/decisions/).
 

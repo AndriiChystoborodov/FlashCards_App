@@ -1,6 +1,8 @@
 # 0010. Database: PostgreSQL hosted on Supabase
 
-Status: accepted. Chosen by the user on 2026-10-24. Adapted to this project after a check of the first draft (see "Corrections made in review" at the end).
+Status: accepted; the Supabase hosting part is **superseded by [decision 0023](0023-local-first.md)** (2026-10-25: local Postgres first, Railway later). PostgreSQL and Drizzle stay. The text below is kept as history.
+
+Original status: accepted. Chosen by the user on 2026-10-24. Adapted to this project after a check of the first draft (see "Corrections made in review" at the end).
 
 ## Context
 

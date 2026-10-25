@@ -2,6 +2,10 @@
 
 Decides which card each student gets, when, and sends it. It lives in a service (`src/services/`), uses the pure rules in `src/domain/`, and sends through the Slack module. One process, no Redis.
 
+## Clock
+
+The scheduler, the answer service and the tick never call `new Date()`. They take time from an injectable clock (`interface Clock { now(): Date }`), so the end-to-end scenario script can advance days ([decision 0023](decisions/0023-local-first.md), Task 4a). The domain functions already receive `now` as a parameter.
+
 ## Delivery model ([decision 0008](decisions/0008-delivery-next-card-after-answer.md))
 
 One open card per student per course. The next card is sent right after the previous one is answered, until the day's work is done. A daily tick starts the day by sending the first card.

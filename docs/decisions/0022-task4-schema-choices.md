@@ -1,5 +1,7 @@
 # 0022. Schema and repositories (Roadmap Task 4): choices the docs left open
 
+> **Note (decision 0023, 2026-10-25):** the Supabase points (5, 13 and the Supabase commands) are superseded by [0023](0023-local-first.md); the rest stands.
+
 ## Context
 
 The Task 4 plan listed the points that [data-model.md](../data-model.md), [0010](0010-database-postgres-supabase.md) and [0013](0013-drizzle-orm-and-kit.md) leave open. The user approved the suggested answers 1 to 13 on 2026-10-25 (source: the user, relayed by the session that started Task 4). Point 14 (is Supabase ready) was not answered clearly, so Supabase is treated as not ready: nothing was run against it.

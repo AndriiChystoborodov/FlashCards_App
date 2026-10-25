@@ -97,6 +97,10 @@ const isLearnedNow = rightMediumOrEasy && newStreak >= LEARNED_STREAK && gapMs >
 
 If the streak is 2 or more and the gap is too short, the card stays unlearned and the streak keeps counting; the first later right Medium or Easy answer with a long enough gap makes it learned. Hard, wrong and Don't know reset the streak, as before.
 
+### Where time is read
+
+`applyAnswer` and `newCardState` take `now` as a parameter. The answer service gets it from the injectable clock (see [scheduler.md](scheduler.md#clock)), never from `new Date()`.
+
 ### Clamping `due` in the answer service
 
 Not part of `applyAnswer` ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). After `applyAnswer` returns, the answer service computes `dueNotAfter`, the end of the local day (student timezone) before `courses.ends_at`. If `state.due > dueNotAfter` and `dueNotAfter > now`, it sets `state.due = dueNotAfter` before saving. Other fields, including `scheduled_days`, stay as ts-fsrs returned them. When `dueNotAfter <= now` (the answer is given on the last day or later) nothing is clamped: a due in the past would make the card come straight back, and a due after `ends_at` is never sent anyway.

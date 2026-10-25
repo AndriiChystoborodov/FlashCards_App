@@ -15,7 +15,7 @@ flowchart LR
 
 - Config from env: `RETAIN_API_URL`, `RETAIN_API_TOKEN`. Over stdio the MCP spec says to read credentials from the environment, not run OAuth.
 - The MCP process uses its own token for the REST call. It never forwards a client token it received.
-- stdio is the first step (the only teacher is the author). The target is a remote MCP server over Streamable HTTP with teacher auth (Supabase Auth was planned); that move is a later decision ([decision 0007](decisions/0007-mcp-stdio-thin-client.md#target-and-first-step)).
+- stdio is the first step (the only teacher is the author). The target is a remote MCP server over Streamable HTTP with teacher auth (Supabase Auth was planned; superseded by [decision 0023](decisions/0023-local-first.md), remote MCP and OAuth are postponed); that move is a later decision ([decision 0007](decisions/0007-mcp-stdio-thin-client.md#target-and-first-step)).
 - Tool definitions live in one transport-independent module (`src/mcp/tools.ts`) with an injected REST client. Only the entry file knows the transport, so the switch to HTTP with `requireBearerAuth` does not change the tools.
 
 ## SDK

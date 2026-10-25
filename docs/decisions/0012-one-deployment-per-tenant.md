@@ -1,5 +1,7 @@
 # 0012. One deployment per tenant
 
+> **Superseded in part (decision 0023, 2026-10-25):** "Supabase project" below now means one database per tenant; hosting is local first, Railway later. The one-deployment-per-tenant choice is unchanged.
+
 ## Context
 
 Requirements say "one tenant per company or university". The data model needs to know whether tables carry a tenant id.

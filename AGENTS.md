@@ -17,7 +17,7 @@ If code and docs disagree, stop and ask instead of picking one.
 
 ## Stack
 
-TypeScript, Express as the web framework ([decision 0001](docs/decisions/0001-express-web-framework.md)). Slack Bolt runs on the same Express app. No NestJS, no Redis, no rate limiter for now. Other technologies are decided later and recorded in `docs/decisions/`.
+TypeScript, Express as the web framework ([decision 0001](docs/decisions/0001-express-web-framework.md)). Slack Bolt runs on the same Express app. No NestJS, no Redis, no rate limiter for now. Database: PostgreSQL with Drizzle, local Docker first, no cloud or hosting for now; Railway later ([decision 0023](docs/decisions/0023-local-first.md)). Goals in order: working proof of concept, clean presentation, maintainability; one service split into folders. Other technologies are decided later and recorded in `docs/decisions/`.
 
 ## Documentation
 
@@ -25,6 +25,7 @@ TypeScript, Express as the web framework ([decision 0001](docs/decisions/0001-ex
 - Every experiment or setup step the user reports (for example "I set up Slack, tested X") is recorded in `docs/`.
 - Each part of the system has its own doc in `docs/`: data model, REST API, FSRS calculator, scheduler, Slack integration, MCP/teacher API. Each is detailed enough to implement from, with diagrams and code examples where useful.
 - After each finished task or session, update the docs and commit them with the code.
+- Record every implementation (why it was done that way) and every decision in `docs/`. Run the end-to-end scenario script after each task, commit after each task, do not push.
 
 ## Ours scope
 
@@ -89,6 +90,10 @@ Known gaps in the data model the calculator will need:
 - `courses.assessment_pass_threshold` (percent, default 90).
 - `enrollments.status` with at least `active`, `exempt`, `completed`.
 - `card_states.learned_at` and `card_states.correct_streak`.
+
+### Task 4a — End-to-end scenario script (proposed placement, after Task 4)
+
+A `tsx` script that follows `docs/walkthrough.md` against the REST API, local Postgres and a fake Slack, with a DB reset/init script and an injectable clock. Details and "done when" in `docs/implementation-plan.md`. Each later task extends it.
 
 ## Conventions
 
