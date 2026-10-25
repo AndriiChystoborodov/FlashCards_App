@@ -4,7 +4,7 @@ Source: the user, on the principal engineer's review, 2026-10-25.
 
 ## Context
 
-Decision 0010 chose PostgreSQL on Supabase. The principal engineer's review asked for the shortest path to a working proof of concept, without hosting or cloud setup.
+Decision 0010 chose PostgreSQL on Supabase. After developer's review, asked for the shortest path to a working proof of concept, without hosting or cloud setup.
 
 ## Choice
 
@@ -17,7 +17,7 @@ Decision 0010 chose PostgreSQL on Supabase. The principal engineer's review aske
 
 ## Why
 
-A proof of concept needs no external account. Standard Postgres keeps the move to Railway to a connection string.
+A proof of concept needs no external account. Сloud setup distracts from the core (logic, data, endpoints, Slack); load balancer, scaling and hosting are hosting configuration that can be done later; for a proof of concept a local setup is enough.
 
 ## Consequences
 
