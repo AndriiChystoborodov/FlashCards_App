@@ -16,6 +16,14 @@ Auth: `Authorization: Bearer <token>`. Middleware maps the token to a teacher (`
 | `POST /courses/:courseId/stop` | `active` to `finished`; active enrollments become `completed` ([decision 0011](decisions/0011-enrollment-completed.md)); DM to students |
 | `DELETE /courses/:courseId` | `draft` only; otherwise 409 (use stop) |
 
+Course `PATCH` errors (shape `{ "error": { "code", "message" } }`, test cases R26 to R29 in [test-plan.md](test-plan.md)):
+
+| Code | Status | When | Reason |
+| --- | --- | --- | --- |
+| `threshold_locked` | 409 | `assessment_pass_threshold` is in the body of a `PATCH` on an `active` course | The assessment has run or is running; changing the threshold would change who is exempt |
+| `ends_at_shortened` | 409 | `ends_at` is earlier than the current value on an `active` course | The new-cards-per-day quota is computed from the remaining days; shortening would push students past the end. Extending is allowed |
+| `course_finished` | 409 | any `PATCH` on a `finished` course | A finished course is read-only |
+
 ## Flashcards (teacher)
 
 | Method and path | Body or result |
