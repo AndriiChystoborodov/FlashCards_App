@@ -1,5 +1,7 @@
-# Local Postgres for repository tests (decision 0010). Host port 5433: 5432 is often taken.
-# TEST_DATABASE_URL=postgres://retain:retain@localhost:5433/retain_test
+# Local Postgres (decisions 0023, 0024). Host port 5433: 5432 is often taken.
+# Tests:    TEST_DATABASE_URL=postgres://retain:retain@localhost:5433/retain_test
+# Scenario: DATABASE_URL=postgres://retain:retain@localhost:5433/retain_dev (created by `npm run db:reset`;
+#           init scripts only run on the first volume init, so the reset script creates it).
 services:
   db:
     image: postgres:17

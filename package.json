@@ -13,7 +13,9 @@
     "spike": "tsx src/slack/spike.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:up": "docker compose up -d db"
+    "db:up": "docker compose up -d db",
+    "db:reset": "tsx src/db/reset.ts",
+    "scenario": "tsx scripts/scenario.ts"
   },
   "dependencies": {
     "@slack/bolt": "5.1.0",

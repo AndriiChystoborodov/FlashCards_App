@@ -138,7 +138,7 @@ Unique `(user_id, flashcard_id, delivery_sent_at)`: a second click on the same d
 
 Code in `src/db/` ([decision 0022](decisions/0022-task4-schema-choices.md)): `schema.ts` (all tables, row level security on, see Hosting), `mappers.ts` (`CardState` <-> columns, `last_review` undefined <-> NULL), `client.ts`, and the repositories. Migrations are in `drizzle/`.
 
-Local database: `npm run db:up`. `.env.example` points `DATABASE_URL` and `TEST_DATABASE_URL` at the same compose database `retain_test` (the only one compose creates; a separate dev database is an open question).
+Local database: `npm run db:up`. `.env.example` points `DATABASE_URL` at the dev database `retain_dev` (created by `npm run db:reset`) and `TEST_DATABASE_URL` at `retain_test` ([decision 0024](decisions/0024-task4a-scenario-choices.md)).
 
 ### Hosting
 
