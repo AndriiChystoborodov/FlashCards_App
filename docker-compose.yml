@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: retain
       POSTGRES_DB: retain_test
     ports:
-      - "5433:5432"
+      # Bound to localhost only: the password is the dev default, so the DB must not be reachable from the network.
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U retain -d retain_test"]
       interval: 2s
