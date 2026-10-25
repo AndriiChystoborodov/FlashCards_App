@@ -76,4 +76,4 @@ Still to do before real data: close the Supabase Data API exposure ([0010](decis
 
 ## Facts to recheck at implementation time
 
-Unverified in research: whether the Bolt web client retries HTTP 429 by default, the 50-blocks limit, and whether `block_actions` is retried. Dependency versions (`@slack/bolt` 5.1.0, `ts-fsrs` 5.4.2, `@modelcontextprotocol/server` 2.4.0) were current on 2026-10-24.
+Verified by the live spike on 2026-10-25 ([spike.md](slack/spike.md)): `chat.postMessage` to a user id opens the DM with only `chat:write`; the answer and rating flow works; no duplicate `block_actions` in 5 runs (double-click not tested). Still unverified: whether the Bolt web client retries HTTP 429 by default, and the 50-blocks limit. Dependency versions (`@slack/bolt` 5.1.0, `ts-fsrs` 5.4.2, `@modelcontextprotocol/server` 2.4.0) were current on 2026-10-24.

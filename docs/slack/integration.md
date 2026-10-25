@@ -76,7 +76,7 @@ Outcome messages:
 ## Identity
 
 - On `POST /courses/:id/students`: `users.lookupByEmail` (needs `users:read.email`, Tier 3, about 50 per minute) fills `slack_id`; space calls out or rely on the client's 429 retry. `users_not_found` leaves `slack_id` null and the API reports `slack_matched: false`.
-- `chat.postMessage({ channel: slackUserId })` opens the DM with only `chat:write`. No `conversations.open` and no `im:write`. Cache the returned `D…` channel in `users.slack_dm_channel`.
+- `chat.postMessage({ channel: slackUserId })` opens the DM with only `chat:write` (verified by the live spike, 2026-10-25). No `conversations.open` and no `im:write`. Cache the returned `D…` channel in `users.slack_dm_channel`.
 - `channel_not_found` means the app cannot DM that user; log it for now. Showing unreachable students to the teacher is an idea for later ([implementation-plan.md](../implementation-plan.md#risks-and-ideas)).
 - Timezone: `users.info` gives `tz`; needs `users:read`, already in the manifest.
 
@@ -86,7 +86,7 @@ Outcome messages:
 
 ## Retries and rate limits
 
-- Events API retries 3 times (immediately, 1 minute, 5 minutes). Button clicks (`block_actions`) are not retried the way events are (unverified). Ack first; on a processing failure, tell the student with `respond`.
+- Events API retries 3 times (immediately, 1 minute, 5 minutes). Button clicks (`block_actions`) are not retried the way events are (no duplicates seen in 5 live spike runs; see [spike.md](spike.md). Double-click not tested). Ack first; on a processing failure, tell the student with `respond`.
 - `chat.postMessage` is about 1 message per second per channel with bursts; `chat.update` and `users.lookupByEmail` are Tier 3.
 - The Bolt `WebClient` retries HTTP 429 using `Retry-After` (unverified default). No extra limiter for the MVP.
 
