@@ -34,6 +34,9 @@ const envSchema = z
     if (e.SLACK_MODE === 'socket' && !e.SLACK_TEST_USER_ID) {
       ctx.addIssue({ code: 'custom', path: ['SLACK_TEST_USER_ID'], message: 'required when SLACK_MODE=socket' });
     }
+    if (!e.DATABASE_URL && e.NODE_ENV !== 'test') {
+      ctx.addIssue({ code: 'custom', path: ['DATABASE_URL'], message: 'required unless NODE_ENV=test' });
+    }
     if (e.STUDENT_ROUTES_ENABLED && e.NODE_ENV === 'production') {
       ctx.addIssue({
         code: 'custom',

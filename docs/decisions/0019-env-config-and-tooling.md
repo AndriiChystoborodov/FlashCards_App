@@ -20,7 +20,7 @@ Env (`src/config/env.ts`, zod 4, loaded through `dotenv`, exports `parseEnv()` a
 | `SEND_HOUR` | integer 0 to 23 | 9 |
 | `REMOVED_RETENTION_DAYS` | positive integer | 14 |
 | `STUDENT_ROUTES_ENABLED` | `true` or `false`; `true` with `NODE_ENV=production` fails startup ([0018](0018-student-routes-dev-only.md)) | `false` |
-| `DATABASE_URL` | optional until Task 4 | |
+| `DATABASE_URL` | required unless `NODE_ENV=test` from Task 4 ([0022](0022-task4-schema-choices.md)) | |
 
 - Error messages name the variable and the rule, never the value.
 - An empty value (as in `.env.example`) counts as unset.

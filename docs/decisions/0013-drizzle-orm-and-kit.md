@@ -26,6 +26,6 @@ Drizzle ORM (`drizzle-orm`) with drizzle-kit for migrations. Chosen by the user 
 
 - Repositories in `src/db/` map `last_review` (`undefined` in ts-fsrs, null in the database) and `state` (smallint) at the boundary.
 - Migrations run over the direct connection or the session pooler, not transaction mode ([decision 0010](0010-database-postgres-supabase.md)).
-- To verify at the database task: `FOR UPDATE SKIP LOCKED` in the Drizzle select API (otherwise use `sql`), and how RLS is enabled on tables for the Data API closure from decision 0010.
+- Verified at Task 4 ([0022](0022-task4-schema-choices.md)): `skipLocked` is in the select API types; RLS via `.enableRLS()`. Original note: `FOR UPDATE SKIP LOCKED` in the Drizzle select API (otherwise use `sql`), and how RLS is enabled on tables for the Data API closure from decision 0010.
 - Tests that need the database run against a local Postgres with the same migrations.
 - Pin versions of `drizzle-orm` and `drizzle-kit` together; they are released as a pair.

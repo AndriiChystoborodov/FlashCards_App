@@ -10,8 +10,8 @@ vi.hoisted(() => {
 
 const { parseEnv } = await import('./env.js');
 
-const socket = { SLACK_BOT_TOKEN: 'xoxb-test', SLACK_APP_TOKEN: 'xapp-test', SLACK_TEST_USER_ID: 'U123' };
-const http = { SLACK_BOT_TOKEN: 'xoxb-test', SLACK_APP_TOKEN: 'xapp-test', SLACK_MODE: 'http', SLACK_SIGNING_SECRET: 'secret' };
+const socket = { SLACK_BOT_TOKEN: 'xoxb-test', SLACK_APP_TOKEN: 'xapp-test', SLACK_TEST_USER_ID: 'U123', DATABASE_URL: 'postgres://x' };
+const http = { SLACK_BOT_TOKEN: 'xoxb-test', SLACK_APP_TOKEN: 'xapp-test', SLACK_MODE: 'http', SLACK_SIGNING_SECRET: 'secret', DATABASE_URL: 'postgres://x' };
 
 describe('parseEnv', () => {
   it('accepts a minimal socket-mode env and applies defaults', () => {
@@ -31,7 +31,7 @@ describe('parseEnv', () => {
   });
 
   it('treats empty strings as unset (as in .env.example)', () => {
-    const e = parseEnv({ ...socket, SEND_HOUR: '', TENANT_TIMEZONE: '', DATABASE_URL: '', SLACK_SIGNING_SECRET: '' });
+    const e = parseEnv({ ...socket, NODE_ENV: 'test', SEND_HOUR: '', TENANT_TIMEZONE: '', DATABASE_URL: '', SLACK_SIGNING_SECRET: '' });
     expect(e.SEND_HOUR).toBe(9);
     expect(e.DATABASE_URL).toBeUndefined();
   });
@@ -82,6 +82,13 @@ describe('parseEnv', () => {
     ['STUDENT_ROUTES_ENABLED', '1'],
   ])('fails on %s=%s', (key, value) => {
     expect(() => parseEnv({ ...socket, [key]: value })).toThrow(key);
+  });
+
+  it('requires DATABASE_URL unless NODE_ENV=test', () => {
+    const { DATABASE_URL: _omit, ...rest } = socket;
+    expect(() => parseEnv(rest)).toThrow('DATABASE_URL');
+    expect(() => parseEnv({ ...rest, NODE_ENV: 'production' })).toThrow('DATABASE_URL');
+    expect(parseEnv({ ...rest, NODE_ENV: 'test' }).DATABASE_URL).toBeUndefined();
   });
 
   it('refuses STUDENT_ROUTES_ENABLED=true in production (R20)', () => {

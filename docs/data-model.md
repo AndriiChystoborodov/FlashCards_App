@@ -133,3 +133,19 @@ Unique `(user_id, flashcard_id, delivery_sent_at)`: a second click on the same d
 - `card_states (user_id, due) where learned_at is null`
 - `flashcards (course_id, position)`
 - `enrollments (user_id)`
+
+## Implementation
+
+Code in `src/db/` ([decision 0022](decisions/0022-task4-schema-choices.md)): `schema.ts` (all tables, row level security on), `mappers.ts` (`CardState` <-> columns, `last_review` undefined <-> NULL), `client.ts`, and the repositories. Migrations are in `drizzle/`.
+
+Local test database: `npm run db:up`, then `TEST_DATABASE_URL=postgres://retain:retain@localhost:5433/retain_test npm test`.
+
+### Applying the migration to Supabase
+
+Not done yet (Supabase was not ready when Task 4 was built). With `DATABASE_URL` in `.env` set to the session pooler string (port 5432, user `postgres.<project-ref>`; never port 6543), run `npm run db:migrate`. Then verify the Data API closure from decision 0010 with an unauthenticated request, using the project's public anon key:
+
+```bash
+curl -s -H "apikey: $ANON_KEY" "https://<project-ref>.supabase.co/rest/v1/users?select=*"
+```
+
+Expected: `[]` or a permission error, never rows. Run it for each table.

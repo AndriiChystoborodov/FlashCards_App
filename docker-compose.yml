@@ -1,0 +1,11 @@
+# Local Postgres for repository tests (decision 0010). Host port 5433: 5432 is often taken.
+# TEST_DATABASE_URL=postgres://retain:retain@localhost:5433/retain_test
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: retain
+      POSTGRES_PASSWORD: retain
+      POSTGRES_DB: retain_test
+    ports:
+      - "5433:5432"

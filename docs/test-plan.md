@@ -55,6 +55,25 @@ Vitest. Tests sit next to the code (`src/**/*.test.ts`, as `vitest.config.ts` di
 | A8 | zero assessment cards | `score` null, not exempt; service sets `assessment_done_at` at once |
 | A9 | `passedFlags` order matches input | yes |
 
+## Database (Task 4)
+
+Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0022-task4-schema-choices.md)); mapper cases also run without it.
+
+| id | case | expected |
+| --- | --- | --- |
+| D1 | `CardState` with `last_review` undefined | stored as NULL, read back undefined |
+| D2 | `last_review` and fractional stability | read back equal |
+| D3 | `learnedAt` null and set | read back equal |
+| D4 | ts-fsrs state 0, 1, 2, 3 | read back equal |
+| D5 | `newCardState` | round-trips (covered by D1) |
+| D6 | learned card, streak 0 (C9 shape) | `learnedAt` kept |
+| D7 | duplicate `card_states (user_id, flashcard_id)` or `enrollments (course_id, user_id)` | rejected |
+| D8 | second review for the same delivery | `insertReview` returns false, one row |
+| D9 | removed enrollment | not returned by the present predicate |
+| D10 | defaults | threshold 90, streak 0, reminder count 0 |
+| D11 | course without `ends_at` | rejected |
+| D12 | migration on an empty database | six tables, row level security on |
+
 ## Scheduler and services
 
 | id | case | expected |
@@ -185,7 +204,7 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | --- | --- |
 | 1 Project setup | R20 (env validation; already in `src/config/env.test.ts`) |
 | 3 Calculator | C1 to C23, A1 to A9 |
-| 4 Schema and repositories | the round trip of `CardState` including null `last_review` (no id yet) |
+| 4 Schema and repositories | D1 to D12 |
 | 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52 |
 | 6 Scheduler | S1, S5 to S9, S11, S12, S15 to S19; also S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
 | 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40 |
