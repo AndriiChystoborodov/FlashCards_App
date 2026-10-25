@@ -124,7 +124,7 @@ sequenceDiagram
 1. Handler `ack()`s, parses the button value, loads the card state and checks `sent_at` is set.
 2. Wrong or "Don't know": `applyAnswer` now. Right: show Hard / Medium / Easy, no state change.
 3. Rating click: `applyAnswer`, clamp `due` to the course end, insert the review (unique key rejects repeats), update `card_states`, clear `sent_at`, replace the Slack message with the outcome.
-4. If it was the last assessment card, `evaluateAssessment`.
+4. If it was the last assessment card, `evaluateAssessment`; the service sets `learnedAt = now` on the passed ones (the function returns flags only).
 5. Call `next()` and send the next card if any.
 
 Steps 3 to 4 run in one transaction.

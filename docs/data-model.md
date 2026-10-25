@@ -54,7 +54,7 @@ PK `(course_id, user_id)`.
 | enrolled_at | timestamptz | |
 | removed_at | timestamptz null | soft delete ([decision 0017](decisions/0017-enrollment-soft-delete.md)); null for a present student |
 | assessment_done_at | timestamptz null | set once, when the last assessment card is answered |
-| assessment_score | numeric null | passed / all, stored for the teacher view |
+| assessment_score | numeric null | percent 0 to 100 (passed / all × 100), stored for the teacher view; null when the course has no assessment cards |
 
 ### Enrollment status ([decision 0011](decisions/0011-enrollment-completed.md))
 

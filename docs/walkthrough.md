@@ -72,7 +72,7 @@ Right after the assessment, on Monday at about 14:05, the answer handler calls `
 | answers | scheduled_days | correct_streak | learned |
 | --- | --- | --- | --- |
 | Easy, Easy (second answer 8 days later) | 8, 66 | 1, 2 | on 2nd answer, gap 8 days |
-| Hard, Hard, Good | 1, 3, 9 | 0, 0, 1 | no |
+| Hard, Hard, Good | 1, 4, 12 | 0, 0, 1 | no |
 | Good, Again | 2, 1 | 1, 0 | no |
 
 The assessment cards: A2 (right + Medium on Monday, about 14:03) is due in 2 days (Wednesday) with streak 1. A3 ("Don't know", about 14:05) is due the next day (Tuesday) with streak 0, stability 0.21, difficulty 6.41.

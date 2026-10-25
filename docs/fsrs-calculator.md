@@ -1,6 +1,6 @@
 # FSRS usage and the card state calculator
 
-Pure module in `src/domain/`. No database, Express or Slack imports. Unit tests next to it.
+Pure module in `src/domain/`: `fsrs.ts` (config, constants), `calculator.ts` (`applyAnswer`, `newCardState`, types, `MissingRatingError`), `assessment.ts` (`evaluateAssessment`). Built in Task 3 ([decision 0021](decisions/0021-task3-calculator-choices.md)). No database, Express or Slack imports. Unit tests next to it.
 
 Facts below were checked against `ts-fsrs@5.4.2` (FSRS-6, ESM, Node 20+) on 2026-10-24. Recheck the `Card` type on upgrade; the types, not this page, are authoritative.
 
@@ -119,6 +119,8 @@ export function evaluateAssessment(
 - Zero assessment cards: `evaluateAssessment([], t)` returns `{ passedFlags: [], score: null, exempt: false }`. The service still sets `enrollments.assessment_done_at = now` immediately (see [scheduler.md](scheduler.md#selecting-the-next-card)), leaves `assessment_score` null and continues in normal mode. Without this the assessment branch would never end.
 - `exempt = score >= threshold`. Exempt: enrollment status `exempt`, progress 100, DM "you already know this material".
 - Not exempt: passed assessment cards get `learnedAt = now` at once and are not sent again (exception to the streak rule). Other assessment cards continue with their FSRS state like normal cards, and all other cards are introduced N per day, with N computed daily ([decision 0006](decisions/0006-new-cards-per-day.md)).
+- `evaluateAssessment` returns flags only. The answer service (Task 5) sets `learnedAt = now` on the passed assessment cards; the domain does not.
+- `threshold` is not validated here (services/zod validate it). `score` is a percent 0 to 100.
 - Assessment answers go through `applyAnswer` first, so their FSRS state and reviews are stored the same way.
 
 ## Worked example
@@ -131,7 +133,7 @@ See [walkthrough.md](walkthrough.md), with numbers from the real library. Refere
 | Good, Good, Good | 2, 11, 46 |
 | Good, Good, Good, Again, Good, Good | 2, 11, 46, 1, 5, 12 |
 | Easy, Easy | 8, 66 |
-| Hard, Hard, Good | 1, 3, 9 (difficulty 5.11, 6.74, 6.73) |
+| Hard, Hard, Good | 1, 4, 12 (difficulty 5.11, 6.74, 6.73); each answer at the previous `due` (Hard's first `due` is 1.5 days away; the interval depends on when the answer comes) |
 | Good, Again | 2, 1 (stability 2.31, 0.61; difficulty 2.12, 7.39) |
 | Again | 1 (stability 0.21, difficulty 6.41) |
 | Again, Good | 1, 2 |

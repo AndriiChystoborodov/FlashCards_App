@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Task 1 (project setup) is built ([decision 0019](decisions/0019-env-config-and-tooling.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Tasks 1 to 3 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -14,7 +14,7 @@ Design phase output, 2026-10-24. Task 1 (project setup) is built ([decision 0019
 | MCP for teachers | [mcp-teacher-api.md](mcp-teacher-api.md) |
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0020 |
+| Decisions | [decisions/](decisions/) 0002 to 0021 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -47,7 +47,7 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 2 Slack spike | as in AGENTS.md; the buttons and values in [slack/integration.md](slack/integration.md); record in [slack/spike.md](slack/spike.md), [decision 0020](decisions/0020-slack-spike-choices.md) | manual run; click logged and message replaced |
 | 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C23, A1 to A9 |
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review` |
-| 5 Answer service | transaction: review insert, state update, assessment evaluation | S2 to S4, S10, S13, S14, S37, S49 to S52 |
+| 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only) | S2 to S4, S10, S13, S14, S37, S49 to S52 |
 | 6 Scheduler | selection, tick, idempotent send | S1 to S19 |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11 |
 | 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications | H1 to H9 |
