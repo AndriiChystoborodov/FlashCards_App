@@ -30,7 +30,9 @@ Source: the user approved the 6b-1 plan with two changes and two additions, rela
 ## Consequences
 
 - A student whose Slack post fails stays blocked for 10 to 25 minutes, then the tick re-posts the card. If the post succeeded but recording `message_ts` failed, the student can get the card twice; accepted (scheduler.md).
+- **Known limitation until 6b-2:** there are no reminders and no automatic release. A student who ignores a card stays blocked on it (one open card per student, [0008](0008-delivery-next-card-after-answer.md)) until they answer it, they are removed or the course ends. The tick only re-posts a card whose post was never recorded.
 - The cleanup marker and the reminders are not here (6b-2).
+- The stale-claim re-post records its message only while the same delivery is still open (`setCardMessage` checks `sent_at`), and it is skipped for a course that has ended. Both are tested, and each test fails without its check (checked by removing the check temporarily).
 
 ## Verification
 

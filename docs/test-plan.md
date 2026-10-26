@@ -144,6 +144,8 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | failure isolation | one student's post fails, the other still gets the card, the summary counts both |
 | S12 | claim younger than 10 minutes left alone; at 10 minutes re-posted once, same `sent_at`, one `card_states` row; not gated by `SEND_HOUR`; a card with a recorded message is never re-posted |
 | `ends_at` | the tick finishes the course and completes the enrollment once |
+| re-post racing an answer | the answer closes the delivery while the re-post's Slack call is in flight (a gated fake): the closed card keeps `message_ts` and `message_channel` null |
+| re-post for an ended course | a stale claim in a course past `ends_at` that is still `active`: `resendStaleClaim` returns false and posts nothing; `runTick` finishes the course and the only message is the course-ended DM |
 | `startTick`, real 20 ms interval | overlapping intervals are skipped while a pass waits for Slack (counts only), the next pass runs after it, `stop()` ends the runs |
 | `localHour` | Zurich both DST days, Asia/Kolkata (+5:30), America/New_York 2026-03-08 and 2026-11-01, midnight is 0 |
 

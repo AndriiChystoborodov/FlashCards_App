@@ -10,6 +10,7 @@ import type { CardMessage } from '../slack/card.js';
 import { FakeSlack } from '../slack/fake.js';
 import { submitAnswer } from './answer.js';
 import { afterAnswer, type SchedulerDeps } from './scheduler.js';
+import { resendStaleClaim } from './scheduler.js';
 import { runTick, startTick } from './tick.js';
 
 afterAll(() => pool.end());
@@ -202,6 +203,58 @@ describe('S12: stale-claim recovery', () => {
     w.clock.set(at('2026-01-08T08:00:00Z'));
     expect(await runTick(w.deps, w.cfg)).toEqual({ sent: 0, resent: 0, failed: 0 });
     expect(w.slack.posted).toHaveLength(1);
+  });
+});
+
+describe('stale-claim recovery: races and ended courses', () => {
+  /** A Slack whose next post waits until `release()`; `entered` resolves when that post has started. */
+  class GatedSlack extends FakeSlack {
+    gate: Promise<void> | null = null;
+    entered: () => void = () => {};
+    override async postCard(to: string, message: CardMessage) {
+      if (this.gate) {
+        const g = this.gate;
+        this.gate = null;
+        this.entered();
+        await g;
+      }
+      return super.postCard(to, message);
+    }
+  }
+
+  it('a re-post that races an answer does not mark the closed card with a message', async () => {
+    const slack = new GatedSlack();
+    const w = await world({ start: '2026-01-06T08:00:00Z', slack });
+    slack.failNextPost = new Error('slack down');
+    await runTick(w.deps, w.cfg); // claimed, post failed: no message_ts
+    w.clock.set(at('2026-01-06T08:10:00Z')); // stale
+    let release!: () => void;
+    slack.gate = new Promise<void>((r) => (release = r));
+    const entered = new Promise<void>((r) => (slack.entered = r));
+    const pass = runTick(w.deps, w.cfg); // the re-post is now in flight, waiting for Slack
+    await entered;
+    const open = (await getOpenCard(db, w.studentId, w.courseId))!;
+    const r = await submitAnswer(w.deps, { userId: w.studentId, flashcardId: open.flashcardId, chosenOption: 0, rating: 'medium' });
+    expect(r.status).toBe('answered'); // the delivery is closed while the post is in flight
+    release();
+    await pass;
+    const rec = (await getCardState(db, w.studentId, w.cardIds[0]!))!;
+    expect(rec).toMatchObject({ sentAt: null, messageChannel: null, messageTs: null });
+  });
+
+  it('a stale claim in a course past ends_at is not posted again (the course is still active: the finish has not run)', async () => {
+    const w = await world({ start: '2000-01-05T09:00:00Z', endsAt: '2000-01-10T12:00:00Z' });
+    await upsertCardState(db, {
+      userId: w.studentId, flashcardId: w.cardIds[0]!, state: newCardState(at('2000-01-09T09:00:00Z')), introducedAt: at('2000-01-09T09:00:00Z'),
+      sentAt: at('2000-01-09T09:00:00Z'), remindedAt: null, reminderCount: 0, messageChannel: null, messageTs: null,
+    });
+    w.clock.set(at('2000-01-10T13:00:00Z')); // past ends_at, finishEndedCourses has not run
+    expect(await resendStaleClaim(w.deps, w.studentId, w.courseId, 10 * 60_000)).toBe(false);
+    expect(w.slack.posted).toHaveLength(0);
+    // runTick finishes the course first: it re-posts nothing; the only message is the course-ended DM.
+    expect(await runTick(w.deps, w.cfg)).toEqual({ sent: 0, resent: 0, failed: 0 });
+    expect(w.slack.posted.map((p) => p.message.text)).toEqual(['The course has ended. Your final progress is 0%.']);
+    expect((await getCardState(db, w.studentId, w.cardIds[0]!))?.messageTs).toBeNull();
   });
 });
 
