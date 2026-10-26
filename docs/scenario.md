@@ -12,6 +12,15 @@ npm run scenario
 
 (`DATABASE_URL` normally comes from `.env`; see `.env.example`.) Run it after every task and extend it.
 
+## Report
+
+```bash
+npm run scenario          # also writes reports/scenario.json (the trace of Ann's days)
+npm run scenario:report   # renders reports/scenario.html
+```
+
+The page shows one row per card and one column per day (sent, answered with Hard/Medium/Easy, waiting, due clamped to the end of the course, learned), a chart of cards introduced and learned per day with the outcome marked, and a note on the exempt student. It is plain SVG with a legend and needs no JavaScript or network. `reports/` is git-ignored. If `reports/scenario.json` is missing or malformed the command exits 1 and says to run `npm run scenario`. Why and how: [decision 0030](decisions/0030-scenario-report.md).
+
 ## Parts
 
 | file | what |
@@ -19,6 +28,7 @@ npm run scenario
 | `src/clock.ts` | `Clock { now(): Date }`, `systemClock`, `createControlledClock` (`set`, `advanceDays`). Services, the scheduler and the tick read time only from a `Clock` ([scheduler.md](scheduler.md#clock)) |
 | `src/db/reset.ts` | `npm run db:reset`: creates `retain_dev` if missing, drops `public` and `drizzle`, applies `drizzle/` migrations. Refuses unless host is `localhost`/`127.0.0.1`, the URL has no query parameters, and the database is exactly `retain_dev` or `retain_reset_test` (the reset test's own throwaway database, created and dropped by the test) |
 | `src/api/testClient.ts` | `listen(deps)` (= `startServer` with `bindHost` `127.0.0.1`, port 0) and `call(token, method, path, body)` over `fetch`; used by the REST tests and the scenario |
+| `src/report/`, `scripts/scenario-report.ts` | `trace.ts` (trace schema, `buildTrace`, `parseTrace`), `render.ts` (`renderReport`), the `scenario:report` command |
 | `scripts/scenario.ts` | `npm run scenario`: steps run in order, `ok N name` or `FAIL N name: message` (exit 1 on the first failure, plus a line saying how many steps passed), then the pending list and a final `N ok, M pending` line |
 
 ## Steps now

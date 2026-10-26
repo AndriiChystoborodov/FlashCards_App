@@ -16,6 +16,7 @@
     "db:up": "docker compose up -d --wait db",
     "db:reset": "tsx src/db/reset.ts",
     "scenario": "tsx scripts/scenario.ts",
+    "scenario:report": "tsx scripts/scenario-report.ts",
     "teacher:token": "tsx scripts/issue-teacher-token.ts",
     "api": "tsx scripts/dev-api.ts",
     "demo:seed": "tsx scripts/demo-seed.ts"

@@ -39,3 +39,6 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Scenario report output (npm run scenario, npm run scenario:report)
+reports/

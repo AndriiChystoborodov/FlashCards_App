@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { eq } from 'drizzle-orm';
@@ -17,6 +18,7 @@ import { runTick } from '../src/services/tick.js';
 import { FakeSlack } from '../src/slack/fake.js';
 import { REJECT_TEXT } from '../src/slack/card.js';
 import { registerHandlers, type ClickArgs } from '../src/slack/handlers.js';
+import { buildTrace, type TraceInput } from '../src/report/trace.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
 const url = env.DATABASE_URL;
@@ -51,6 +53,10 @@ const nameOf = (id: string) => {
   return i < 3 ? `A${i + 1}` : `card-${i - 2}`;
 };
 
+// Ann's real answers, recorded where `reply` submits them; reports/scenario.json is built from these and the final database rows.
+const annAnswers: TraceInput['answers'] = [];
+const TRACE_FILE = 'reports/scenario.json';
+
 const state = async (userId: string, flashcardId: string) => (await getCardState(db, userId, flashcardId))!;
 const enrollmentOf = async (userId: string) => (await db.select().from(schema.enrollments).where(eq(schema.enrollments.userId, userId)))[0]!;
 const iso = (d: Date | null | undefined) => d?.toISOString();
@@ -61,6 +67,10 @@ async function reply(userId: string, chosenOption: number | null, rating?: 'hard
   assert.ok(open, 'the student has no open card');
   const result = await submitAnswer(deps, { userId, flashcardId: open.flashcardId, chosenOption, ...(rating && { rating }), ...(open.messageTs && { messageTs: open.messageTs }) });
   assert.equal(result.status, 'answered', `expected answered, got ${JSON.stringify(result)}`);
+  if (result.status === 'answered' && userId === ids.ann) {
+    const due = (await state(userId, open.flashcardId)).state.due;
+    annAnswers.push({ card: nameOf(open.flashcardId), sentAt: open.sentAt ?? clock.now(), answeredAt: clock.now(), rating: rating ?? null, correct: result.review.isCorrect, due, clamped: result.clampedFrom !== null });
+  }
   const sent = await afterAnswer(deps, userId, ids.course, result);
   return { id: open.flashcardId, result, sent };
 }
@@ -479,6 +489,30 @@ const pending = [
   '6 edge cases (reminders, removal and cleanup; stale-claim recovery runs above; the second click is checked above): Task 6b-2',
 ];
 
+async function writeTrace() {
+  const [course] = await db.select().from(schema.courses).where(eq(schema.courses.id, ids.course));
+  const states = await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann));
+  const cards = (await db.select().from(schema.flashcards).where(eq(schema.flashcards.courseId, ids.course))).sort((a, b) => a.position - b.position);
+  const learnedOf = (id: string) => states.find((r) => r.flashcardId === id)?.learnedAt ?? null;
+  const [ann, bea] = [await enrollmentOf(ids.ann), await enrollmentOf(ids.bea)];
+  const trace = buildTrace({
+    title: course!.title,
+    timezone: slack.directory.get('ann@x.test')?.tz ?? env.TENANT_TIMEZONE, // the zone the scheduler uses for Ann's day
+    startsAt: course!.startsAt!,
+    endsAt: course!.endsAt,
+    cards: cards.map((c) => ({ name: nameOf(c.id), assessment: c.isAssessment, introducedAt: states.find((r) => r.flashcardId === c.id)?.introducedAt ?? null, learnedAt: learnedOf(c.id) })),
+    answers: annAnswers,
+    students: [
+      { name: 'Ann', status: ann.status, progress: ann.completedProgress ?? 0, learned: states.filter((r) => r.learnedAt).length },
+      { name: 'Bea', status: bea.status, progress: bea.assessmentScore ?? 0, learned: null }, // exempt: the field holds the assessment score,
+    ],
+  });
+  await mkdir('reports', { recursive: true });
+  await writeFile(TRACE_FILE, `${JSON.stringify(trace, null, 2)}\n`);
+  console.log(`trace written to ${TRACE_FILE}`);
+}
+
+await rm(TRACE_FILE, { force: true }); // a failed run must not leave an old trace behind
 for (const [i, step] of steps.entries()) {
   try {
     await step.run();
@@ -491,5 +525,6 @@ for (const [i, step] of steps.entries()) {
 }
 for (const p of pending) console.log(`pending ${p}`);
 console.log(`${steps.length} ok, ${pending.length} pending`);
+await writeTrace();
 await api.close();
 await pool.end();

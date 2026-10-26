@@ -117,6 +117,8 @@ timeline
 
 Why the clamp and the 7-day gap: [fsrs-calculator.md](fsrs-calculator.md) and [decision 0015](decisions/0015-learned-needs-retention-gap.md).
 
+To see the whole 12-day run as one picture, run `npm run scenario` and then `npm run scenario:report`, and open `reports/scenario.html`. It shows each card on each day (sent, answered Hard/Medium/Easy, waiting, clamped, learned), cards introduced and learned per day with the 40% outcome, and the exempt student. Details: [scenario.md](scenario.md#report).
+
 ## 5. File map
 
 | Where | What lives there |
@@ -129,7 +131,7 @@ Why the clamp and the 7-day gap: [fsrs-calculator.md](fsrs-calculator.md) and [d
 | `src/services/` | the use cases: answer, scheduler, tick, courses, enrollment, progress |
 | `src/api/` | Express app, token auth, zod schemas, teacher and student routers |
 | `src/slack/` | port, real adapter, Bolt handlers, card messages, fake |
-| `scripts/` | `scenario.ts` (end-to-end check), `demo-seed.ts`, `issue-teacher-token.ts`, `dev-api.ts` |
+| `scripts/` | `scenario.ts` (end-to-end check), `scenario-report.ts` (HTML picture of it), `demo-seed.ts`, `issue-teacher-token.ts`, `dev-api.ts` |
 | `drizzle/` | generated SQL migrations |
 | `docker-compose.yml` | local Postgres |
 | `docs/` | design docs ([implementation-plan.md](implementation-plan.md) is the index) and `decisions/` |
