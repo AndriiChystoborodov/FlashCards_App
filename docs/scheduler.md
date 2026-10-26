@@ -92,7 +92,7 @@ At `ends_at` or on stop, open cards are closed with the enrollment ([completion]
 
 ## Tick
 
-Built in Task 6b-1 ([decision 0027](decisions/0027-task6b1-tick-choices.md)): `runTick(deps, cfg)` and `startTick(deps, cfg)` in `src/services/tick.ts`. `startTick` runs `runTick` every `TICK_MINUTES` (default 15) with `setInterval`; the first pass is one interval after the start. A pass that is still running when the next interval fires makes that interval skip, so passes never overlap. Until Task 8 `src/index.ts` does not start it (there is no real Slack adapter); the end-to-end scenario calls `runTick` with the controllable clock and the `FakeSlack`.
+Built in Task 6b-1 ([decision 0027](decisions/0027-task6b1-tick-choices.md)): `runTick(deps, cfg)` and `startTick(deps, cfg)` in `src/services/tick.ts`. `startTick` runs `runTick` every `TICK_MINUTES` (default 15) with `setInterval`; the first pass is one interval after the start. A pass that is still running when the next interval fires makes that interval skip, so passes never overlap. `src/index.ts` starts it (Task 8) with the real Slack adapter and logs one line per pass (`sent`, `resent`, `failed`); the end-to-end scenario calls `runTick` with the controllable clock and the `FakeSlack`.
 
 Once per day (the first tick after local midnight of `TENANT_TIMEZONE`, tracked in memory and safe to repeat) the tick will also run the removed-students cleanup described above: hard-delete after `REMOVED_RETENTION_DAYS`. Not built yet (Task 6b-2), like the reminders.
 

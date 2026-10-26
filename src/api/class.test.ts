@@ -79,7 +79,7 @@ describe('enroll (R8)', () => {
     const { courseId } = await draftCourse(h, tom);
     const e = h.email('late');
     expect((await enroll(courseId, { email: e, name: 'L' })).body.students[0].slack_matched).toBe(false);
-    h.slack.directory.set(e, { slackId: 'ULATE', tz: null });
+    h.slack.directory.set(e, { slackId: `ULATE-${crypto.randomUUID()}`, tz: null });
     expect((await enroll(courseId, { email: e, name: 'L' })).body.students[0]).toMatchObject({ slack_matched: true, enrolled: false });
   });
 

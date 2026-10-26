@@ -29,7 +29,8 @@ export const patchCourse = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, 'at least one field is required');
 
-const MAX_CARD_CHARS = 3000; // Slack message text limit (rest-api.md "Validation")
+// Slack's section block holds 3,000 characters; the card adds about 40 for `*...*`, `1. ` and newlines (nine options at most), so 2,900 leaves room (H9).
+const MAX_CARD_CHARS = 2900;
 const flashcard = z
   .strictObject({
     question: str().min(1),

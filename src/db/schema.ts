@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -30,7 +31,11 @@ export const users = pgTable(
     tz: text('tz'),
     apiTokenHash: text('api_token_hash').unique(),
   },
-  (t) => [check('users_role_check', sql`${t.role} in ('teacher', 'student')`)],
+  (t) => [
+    check('users_role_check', sql`${t.role} in ('teacher', 'student')`),
+    // A Slack click is mapped to a user by this id, so two users must never share one (nulls may repeat).
+    uniqueIndex('users_slack_id_key').on(t.slackId),
+  ],
 ).enableRLS();
 
 export const courses = pgTable(

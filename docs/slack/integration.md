@@ -74,10 +74,11 @@ Refusals from `submitAnswer` (`src/services/answer.ts`), one code per text:
 | --- | --- |
 | `sent_again` | "This card was sent again, use the latest message" |
 | `removed` | "You are no longer enrolled in this course" |
-| `course_over` | "The course is over" |
-| `not_open` | none in the design yet (the spike's "This card was already answered." fits) |
-| `not_enrolled` | none yet |
-| `duplicate` | no text: ignore it and show the replaced message |
+| `course_over` | "The course is over." (with the full stop, as `TEXT.expired`) |
+| `not_open` | "This card was already answered." (chosen in Task 8, the spike's text) |
+| `not_enrolled` | "You are not enrolled in this course." (chosen in Task 8; also a Slack user we do not know) |
+| `duplicate` | no text: nothing is sent, the click that won already replaced the message |
+| unexpected error | ephemeral "Something went wrong. Please try again." (buttons stay) |
 
 Outcome messages:
 - Right: "Right. How hard was it?" with Hard / Medium / Easy.
@@ -100,6 +101,14 @@ Outcome messages:
 - Events API retries 3 times (immediately, 1 minute, 5 minutes). Button clicks (`block_actions`) are not retried the way events are (no duplicates seen in 5 live spike runs; see [spike.md](spike.md). Double-click not tested). Ack first; on a processing failure, tell the student with `respond`.
 - `chat.postMessage` is about 1 message per second per channel with bursts; `chat.update` and `users.lookupByEmail` are Tier 3.
 - The Bolt `WebClient` retries HTTP 429 using `Retry-After` (unverified default). No extra limiter for the MVP.
+
+## Built in Task 8 ([decision 0029](../decisions/0029-task8-slack-wiring-choices.md))
+
+- `src/slack/web.ts`: `slackPort(web)` implements the port with `chat.postMessage`, `chat.update` and `users.lookupByEmail` (its response already holds `user.tz`, so there is no `users.info` call). A failure becomes `SlackPortError(method, code)` carrying only Slack's error code; `users_not_found` is `null`. A rejected post means nothing was sent: the scheduler keeps the claim and the tick re-posts it after 10 to 25 minutes (decision 0027); `sendFirstCards`, `enrollStudents` and the tick catch and log it.
+- `src/slack/start.ts`: the Bolt app in socket mode with `retryConfig: fiveRetriesInFiveMinutes` and `timeout: 15000` (the client default is ten retries over about 30 minutes and no timeout).
+- `src/slack/handlers.ts`: `registerHandlers(app, deps)`. `ack()` first. The clicking Slack user is mapped with `findUserBySlackId` (unknown: `not_enrolled`); `previewAnswer` (first click) and `submitAnswer` refuse unless that user is enrolled and the card is open for them, and the click's `message.ts` is the stored one. A right first click stores nothing. Only ids and codes are logged: never a value, a payload or a token.
+- `src/index.ts` starts `startServer` (host `HOST`, port `PORT`), then Bolt, then `startTick`. `SLACK_MODE=http` stops at startup with "not built yet". The spike keeps its own handlers (`spikeHandlers.ts`, `npm run spike`).
+- Live run: [live-run.md](live-run.md).
 
 ## Testing without Slack
 

@@ -32,7 +32,7 @@ The manifest contains no secrets. Tokens and the signing secret live only in `.e
    - `SLACK_BOT_TOKEN` (`xoxb-…`) — _OAuth & Permissions → Bot User OAuth Token_
    - `SLACK_APP_TOKEN` (`xapp-…`) — _Basic Information → App-Level Tokens_, create one with the `connections:write` scope
    - `SLACK_SIGNING_SECRET` — _Basic Information → Signing Secret_ (not used in Socket Mode, needed later for HTTP)
-   - `SLACK_TEST_USER_ID` — your own member id (Slack profile → ⋯ → Copy member ID)
+   - `SLACK_TEST_USER_ID` — your own member id (Slack profile → ⋯ → Copy member ID); only `npm run spike` needs it
 
 ## Changing settings
 

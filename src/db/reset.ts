@@ -29,6 +29,12 @@ export function assertResettable(connectionString: string): URL {
   return url;
 }
 
+/** `npm run demo:seed` writes a demo course and sends real Slack messages, so it runs only against `retain_dev` (not the reset test's database). Same checks as the reset, then the exact name. */
+export function assertDemoDatabase(connectionString: string): void {
+  const url = assertResettable(connectionString);
+  if (decodeURIComponent(url.pathname.slice(1)) !== DEV_DATABASE) throw new Error(`Refusing to seed: the database must be exactly "${DEV_DATABASE}".`);
+}
+
 // The compose init scripts only run on the first volume init, so the database is created here (name already checked by the guard).
 async function ensureDatabase(url: URL, name: string): Promise<void> {
   const admin = new URL(url.toString());

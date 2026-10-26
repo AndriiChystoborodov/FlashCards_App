@@ -17,7 +17,8 @@
     "db:reset": "tsx src/db/reset.ts",
     "scenario": "tsx scripts/scenario.ts",
     "teacher:token": "tsx scripts/issue-teacher-token.ts",
-    "api": "tsx scripts/dev-api.ts"
+    "api": "tsx scripts/dev-api.ts",
+    "demo:seed": "tsx scripts/demo-seed.ts"
   },
   "dependencies": {
     "@slack/bolt": "5.1.0",

@@ -16,6 +16,11 @@ export async function findUserByEmail(db: DbOrTx, email: string) {
   return row ?? null;
 }
 
+export async function findUserBySlackId(db: DbOrTx, slackId: string) {
+  const [row] = await db.select().from(users).where(eq(users.slackId, slackId));
+  return row ?? null;
+}
+
 /** Concurrent enrollments of one new email: the loser inserts nothing and the caller re-reads the row. */
 export async function insertStudent(db: DbOrTx, v: { email: string; fullName: string }): Promise<void> {
   await db.insert(users).values({ ...v, role: 'student' }).onConflictDoNothing({ target: users.email });

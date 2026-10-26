@@ -3,6 +3,7 @@ import { getOpenCard } from '../db/selection.js';
 import { getUser } from '../db/users.js';
 import { localHour } from '../domain/localDay.js';
 import { finishEndedCourses, resendStaleClaim, sendNext, type SchedulerDeps } from './scheduler.js';
+import { errText } from './logError.js';
 import { studentTimezone } from './timezone.js';
 
 export interface TickConfig {
@@ -36,7 +37,7 @@ export async function runTick(deps: SchedulerDeps, cfg: TickConfig): Promise<Tic
     await finishEndedCourses(deps, cfg.courseIds);
   } catch (err) {
     summary.failed += 1;
-    console.error('finishing ended courses failed', err);
+    console.error('finishing ended courses failed', errText(err));
   }
   for (const { userId, courseId } of await listTickTargets(deps.db, cfg.courseIds)) {
     try {
@@ -50,7 +51,7 @@ export async function runTick(deps: SchedulerDeps, cfg: TickConfig): Promise<Tic
       if ((await sendNext(deps, userId, courseId)).status === 'sent') summary.sent += 1;
     } catch (err) {
       summary.failed += 1;
-      console.error(`tick failed for user ${userId} in course ${courseId}`, err);
+      console.error(`tick failed for user ${userId} in course ${courseId}`, errText(err));
     }
   }
   return summary;
@@ -80,7 +81,8 @@ export function startTick(deps: SchedulerDeps, cfg: TickConfig & { intervalMs: n
     running = true;
     stats.runs += 1;
     inflight = runTick(deps, cfg)
-      .catch((err) => console.error('tick failed', err))
+      .then((r) => console.log(`tick ${deps.clock.now().toISOString()}: sent=${r.sent} resent=${r.resent} failed=${r.failed}`))
+      .catch((err) => console.error('tick failed', errText(err)))
       .finally(() => {
         running = false;
       });

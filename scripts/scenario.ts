@@ -15,6 +15,8 @@ import { issueTeacherToken } from '../src/services/auth.js';
 import { afterAnswer, sendNext, TEXT } from '../src/services/scheduler.js';
 import { runTick } from '../src/services/tick.js';
 import { FakeSlack } from '../src/slack/fake.js';
+import { REJECT_TEXT } from '../src/slack/card.js';
+import { registerHandlers, type ClickArgs } from '../src/slack/handlers.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
 const url = env.DATABASE_URL;
@@ -431,6 +433,42 @@ const steps: Step[] = [
       assert.equal(slack.replaced.at(-1)?.ts, cyCard?.messageTs); // Cy's open card is closed
       const twice = await api.call(tomToken, 'POST', `/courses/${c.course_id}/stop`);
       assert.deepEqual([twice.status, twice.body.error.code], [409, 'course_not_active']);
+    },
+  },
+  {
+    name: 'Slack handlers (Task 8, fake client): Eve clicks through the Bolt handlers: "Don\'t know" stores one review and sends the next card, a second click is "already answered", a Slack user nobody enrolled is "not enrolled"',
+    run: async () => {
+      slack.directory.set('eve@x.test', { slackId: 'UEVE', tz: 'Europe/Zurich' });
+      clock.set(at('2026-01-19T09:00:00Z'));
+      const c = await rest('POST', '/courses', { title: 'Passwords', material_url: 'https://wiki.example.com/passwords', ends_at: '2026-02-10T00:00:00Z' }, 201);
+      await rest('POST', `/courses/${c.course_id}/flashcards`, { flashcards: [{ question: 'W1', options: ['right', 'x'], correct_option: 0, is_assessment: true }, { question: 'W2', options: ['right', 'x'], correct_option: 0, is_assessment: true }] }, 201);
+      await rest('POST', `/courses/${c.course_id}/students`, { students: [{ email: 'eve@x.test', name: 'Eve' }] });
+      await rest('POST', `/courses/${c.course_id}/start`);
+      const eve = ((await rest('GET', `/courses/${c.course_id}/students`)).students as { student_id: string }[])[0]!.student_id;
+      const open = (await getOpenCard(db, eve, c.course_id))!;
+
+      const routes: { pattern: RegExp; handler: (a: ClickArgs) => Promise<void> }[] = [];
+      registerHandlers({ action: (pattern, handler) => void routes.push({ pattern, handler }) }, deps);
+      const shown: string[] = [];
+      const click = async (slackId: string) => {
+        const route = routes.find((r) => r.pattern.test('answer_dont_know'))!;
+        await route.handler({
+          ack: async () => {},
+          action: { action_id: 'answer_dont_know', value: JSON.stringify({ c: open.flashcardId, o: null }) } as ClickArgs['action'],
+          body: { user: { id: slackId }, message: { ts: open.messageTs! } },
+          respond: async (m) => void shown.push(m.text),
+        });
+      };
+      const posts = slack.posted.length;
+      await click('UEVE');
+      assert.match(shown.at(-1)!, /^Not quite\. The right answer is 1: right\.\nMaterial: /);
+      assert.equal((await db.select().from(schema.reviews).where(eq(schema.reviews.userId, eve))).length, 1);
+      assert.equal(slack.posted.length, posts + 1); // the next assessment card
+      await click('UEVE');
+      assert.equal(shown.at(-1), REJECT_TEXT.not_open);
+      await click('UNOBODY');
+      assert.equal(shown.at(-1), REJECT_TEXT.not_enrolled);
+      assert.equal((await db.select().from(schema.reviews).where(eq(schema.reviews.userId, eve))).length, 1);
     },
   },
 ];

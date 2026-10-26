@@ -31,7 +31,7 @@ describe('add (R4, R13)', () => {
     ['one option', cardBody({ options: ['a'] })],
     ['ten options', cardBody({ options: Array.from({ length: 10 }, (_, i) => `o${i}`) })],
     ['an empty option', cardBody({ options: ['a', ''] })],
-    ['question and options over 3000 characters', cardBody({ question: 'q'.repeat(2991), options: ['aaaaa', 'bbbbb'] })],
+    ['question and options over 2900 characters', cardBody({ question: 'q'.repeat(2891), options: ['aaaaa', 'bbbbb'] })],
     ['options not strings', cardBody({ options: [1, 2] })],
     ['unknown key', cardBody({ explanation: 'x' })],
   ])('R4: 400 for %s and nothing is stored', async (_n, card) => {
@@ -41,10 +41,10 @@ describe('add (R4, R13)', () => {
     expect(await rows(courseId)).toHaveLength(1);
   });
 
-  it('nine options and exactly 3000 characters are accepted; positions run 1..n in order', async () => {
+  it('nine options and exactly 2900 characters are accepted; positions run 1..n in order', async () => {
     const { courseId } = await draftCourse(h, tom, 2, 0);
     const r = await call('POST', `/courses/${courseId}/flashcards`, {
-      flashcards: [cardBody({ options: Array.from({ length: 9 }, (_, i) => `o${i}`), correct_option: 8 }), cardBody({ question: 'q'.repeat(2990), options: ['aaaaa', 'bbbbb'] })],
+      flashcards: [cardBody({ options: Array.from({ length: 9 }, (_, i) => `o${i}`), correct_option: 8 }), cardBody({ question: 'q'.repeat(2890), options: ['aaaaa', 'bbbbb'] })],
     });
     expect(r.status).toBe(201);
     expect(r.body.flashcards.map((f: { position: number }) => f.position)).toEqual([3, 4]);

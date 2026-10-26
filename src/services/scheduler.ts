@@ -15,6 +15,7 @@ import { quotaToday } from '../domain/quota.js';
 import { buildCardMessage, textOnly } from '../slack/card.js';
 import type { SlackPort } from '../slack/port.js';
 import type { AnswerResult } from './answer.js';
+import { errText } from './logError.js';
 import { studentTimezone } from './timezone.js';
 
 export interface SchedulerDeps {
@@ -137,7 +138,7 @@ export async function sendFirstCards(deps: SchedulerDeps, courseId: string): Pro
     try {
       if ((await sendNext(deps, e.userId, courseId)).status === 'sent') sent += 1;
     } catch (err) {
-      console.error(`first card for user ${e.userId} failed`, err);
+      console.error(`first card for user ${e.userId} failed`, errText(err));
     }
   }
   return sent;
@@ -208,14 +209,14 @@ export async function finishCourse(deps: SchedulerDeps, courseId: string): Promi
     try {
       await deps.slack.replaceMessage(o.channel, o.ts, textOnly(TEXT.expired));
     } catch (err) {
-      console.error('replacing the open card message failed', err);
+      console.error('replacing the open card message failed', errText(err));
     }
   }
   for (const c of completed) {
     try {
       await dm(deps, c.userId, TEXT.ended(c.progress));
     } catch (err) {
-      console.error(`course-ended message for user ${c.userId} failed`, err);
+      console.error(`course-ended message for user ${c.userId} failed`, errText(err));
     }
   }
   return { completed: completed.map((c) => c.userId) };
@@ -228,7 +229,7 @@ export async function finishEndedCourses(deps: SchedulerDeps, only?: string[]): 
     try {
       await finishCourse(deps, id);
     } catch (err) {
-      console.error(`finishing course ${id} failed`, err);
+      console.error(`finishing course ${id} failed`, errText(err));
     }
   }
   return ids;

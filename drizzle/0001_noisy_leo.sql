@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "users_slack_id_key" ON "users" USING btree ("slack_id");

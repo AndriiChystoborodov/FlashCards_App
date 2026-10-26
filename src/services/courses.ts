@@ -3,6 +3,7 @@ import { listPresentEnrollments } from '../db/enrollments.js';
 import { countCards } from '../db/selection.js';
 import { dm, finishCourse, sendFirstCards, TEXT, type SchedulerDeps } from './scheduler.js';
 import { ServiceError } from './errors.js';
+import { errText } from './logError.js';
 
 export interface NewCourse {
   title: string;
@@ -74,7 +75,7 @@ export async function startCourse(deps: SchedulerDeps, teacherId: string, course
     try {
       await dm(deps, e.userId, TEXT.started);
     } catch (err) {
-      console.error(`start message for user ${e.userId} failed`, err instanceof Error ? `${err.name}: ${err.message.slice(0, 200)}` : 'unknown error');
+      console.error(`start message for user ${e.userId} failed`, errText(err));
     }
   }
   await sendFirstCards(deps, courseId);

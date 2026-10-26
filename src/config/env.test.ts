@@ -24,11 +24,24 @@ describe('parseEnv', () => {
       TICK_MINUTES: 15,
       REMOVED_RETENTION_DAYS: 14,
       STUDENT_ROUTES_ENABLED: false,
+      HOST: '127.0.0.1',
+      PORT: 3000,
     });
   });
 
-  it('accepts a minimal http-mode env without SLACK_TEST_USER_ID', () => {
-    expect(parseEnv(http).SLACK_MODE).toBe('http');
+  it('accepts a minimal http-mode env without SLACK_TEST_USER_ID or SLACK_APP_TOKEN', () => {
+    const { SLACK_APP_TOKEN: _omit, ...rest } = http;
+    expect(parseEnv(rest).SLACK_MODE).toBe('http');
+  });
+
+  it('does not need SLACK_TEST_USER_ID in socket mode (only the spike does)', () => {
+    const { SLACK_TEST_USER_ID: _omit, ...rest } = socket;
+    expect(parseEnv(rest).SLACK_TEST_USER_ID).toBeUndefined();
+  });
+
+  it('takes HOST and PORT, and rejects a bad PORT', () => {
+    expect(parseEnv({ ...socket, HOST: '::1', PORT: '8080' })).toMatchObject({ HOST: '::1', PORT: 8080 });
+    for (const bad of ['0', '70000', 'x', '1.5']) expect(() => parseEnv({ ...socket, PORT: bad })).toThrow('PORT');
   });
 
   it('treats empty strings as unset (as in .env.example)', () => {
@@ -50,7 +63,7 @@ describe('parseEnv', () => {
     expect(e).toMatchObject({ NODE_ENV: 'test', SEND_HOUR: 0, REMOVED_RETENTION_DAYS: 30, STUDENT_ROUTES_ENABLED: true });
   });
 
-  it.each(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN', 'SLACK_TEST_USER_ID'])('fails when %s is missing in socket mode', (key) => {
+  it.each(['SLACK_BOT_TOKEN', 'SLACK_APP_TOKEN'])('fails when %s is missing in socket mode', (key) => {
     const { [key]: _omit, ...rest } = socket as Record<string, string>;
     expect(() => parseEnv(rest)).toThrow(key);
   });

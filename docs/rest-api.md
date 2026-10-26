@@ -37,7 +37,7 @@ Course `PATCH` errors (shape `{ "error": { "code", "message" } }`, test cases R2
 
 [Decision 0016](decisions/0016-flashcards-frozen-after-start.md): editing and deleting cards, including marking or unmarking assessment, is allowed only while the course is `draft`. After `start` the API returns 409 `course_not_draft`; only adding new cards is allowed (not on a `finished` course: 409 `course_finished`). Question and options of a card are never editable through `PATCH`. Cards added to an `active` course never reopen a `completed` enrollment.
 
-Validation: 2 to 9 options, `correct_option` inside the range, button labels are only numbers so option text length is bounded by Slack message text (under 3,000 chars per card).
+Validation: 2 to 9 options, `correct_option` inside the range, button labels are only numbers so option text length is bounded by Slack message text (question and options together at most 2,900 characters: Slack's section block holds 3,000 and the card adds about 40 for formatting).
 
 ## Class (teacher)
 
@@ -110,7 +110,7 @@ One table for the whole API (decision 0028). Codes marked * are not named anywhe
 
 ## Try it with curl
 
-Development only. `npm run api` starts the API on `127.0.0.1:3000` (set `PORT` to change it) with a Slack port that prints messages to the console and no scheduler tick; nobody is matched in Slack, so students show `slack_matched: false`. It is separate from the server Task 8 will wire in `src/index.ts`.
+Development only. `npm run api` starts the API on `127.0.0.1:3000` (set `PORT` to change it) with a Slack port that prints messages to the console and no scheduler tick; nobody is matched in Slack, so students show `slack_matched: false`. The real server is `npm run dev` (`src/index.ts`, Task 8): `HOST` (default `127.0.0.1`) and `PORT` (default 3000), the real Slack adapter and the tick.
 
 ```bash
 npm run db:up && npm run db:reset          # local Postgres, DATABASE_URL in .env

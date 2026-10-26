@@ -6,6 +6,7 @@ import { findUserByEmail, insertStudent, setSlackIdentity } from '../db/users.js
 import { textOnly } from '../slack/card.js';
 import { ownedCourse } from './courses.js';
 import { ServiceError } from './errors.js';
+import { errText } from './logError.js';
 import { dm, sendNext, TEXT, type SchedulerDeps } from './scheduler.js';
 
 export interface EnrollResult {
@@ -16,8 +17,6 @@ export interface EnrollResult {
 }
 
 const DAY_MS = 86_400_000;
-/** Drizzle errors carry query parameters (emails); log name and message only. */
-const errText = (e: unknown) => (e instanceof Error ? `${e.name}: ${e.message.slice(0, 200)}` : 'unknown error');
 
 /**
  * rest-api.md "Class". Creates missing users, looks up Slack, enrolls. An email removed less than `retentionDays` ago is

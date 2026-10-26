@@ -3,7 +3,7 @@ import { evaluateAssessment } from '../domain/assessment.js';
 import { dueNotAfter, endOfLocalDay } from '../domain/localDay.js';
 import type { Clock } from '../clock.js';
 import { getCardState, markLearned, upsertCardState } from '../db/cardStates.js';
-import type { Db } from '../db/client.js';
+import type { Db, Tx } from '../db/client.js';
 import { getCourse } from '../db/courses.js';
 import { completeAssessment, getEnrollment } from '../db/enrollments.js';
 import { getFlashcard, listFlashcardsByCourse } from '../db/flashcards.js';
@@ -58,24 +58,46 @@ export class InvalidOptionError extends Error {
 
 const reject = (reason: RejectReason): AnswerResult => ({ status: 'rejected', reason });
 
+/** The checks every click shares, in the order of decision 0025 #4. Writes nothing. */
+async function guardClick(tx: Db | Tx, input: Pick<AnswerInput, 'userId' | 'flashcardId' | 'messageTs'>) {
+  const card = await getFlashcard(tx, input.flashcardId);
+  if (!card) return { ok: false as const, reason: 'not_open' as const };
+  const course = await getCourse(tx, card.courseId);
+  const enrollment = await getEnrollment(tx, card.courseId, input.userId);
+  if (!course || !enrollment) return { ok: false as const, reason: 'not_enrolled' as const };
+  // Removed is checked before "not open": removal voids the open card, so it would match too (S41).
+  if (enrollment.removedAt) return { ok: false as const, reason: 'removed' as const };
+  if (enrollment.status !== 'active' || course.status !== 'active') return { ok: false as const, reason: 'course_over' as const };
+  const record = await getCardState(tx, input.userId, input.flashcardId);
+  if (!record?.sentAt) return { ok: false as const, reason: 'not_open' as const };
+  if (input.messageTs && record.messageTs && input.messageTs !== record.messageTs) return { ok: false as const, reason: 'sent_again' as const };
+  return { ok: true as const, card, course, enrollment, record, sentAt: record.sentAt };
+}
+
+export type PreviewResult = { status: 'checked'; isCorrect: boolean } | { status: 'rejected'; reason: RejectReason };
+
+/**
+ * The first click of Slack's two-step answer: the same checks as `submitAnswer`, and whether the option is right, with no write at all
+ * (decision 0025 #2). A right answer then waits for the rating click; a wrong one goes straight to `submitAnswer`.
+ */
+export async function previewAnswer(deps: Pick<AnswerDeps, 'db'>, input: Omit<AnswerInput, 'rating'>): Promise<PreviewResult> {
+  const guarded = await guardClick(deps.db, input);
+  if (!guarded.ok) return { status: 'rejected', reason: guarded.reason };
+  const { card } = guarded;
+  const o = input.chosenOption;
+  if (o !== null && (!Number.isInteger(o) || o < 0 || o >= card.options.length)) throw new InvalidOptionError(o, card.options.length);
+  return { status: 'checked', isCorrect: o === card.correctOption };
+}
+
 /** One transaction: review insert, FSRS state, `due` clamp, and the assessment evaluation on the last assessment card. */
 export async function submitAnswer(deps: AnswerDeps, input: AnswerInput): Promise<AnswerResult> {
   const now = deps.clock.now();
   const { userId, flashcardId, chosenOption } = input;
 
   return deps.db.transaction(async (tx) => {
-    const card = await getFlashcard(tx, flashcardId);
-    if (!card) return reject('not_open');
-    const course = await getCourse(tx, card.courseId);
-    const enrollment = await getEnrollment(tx, card.courseId, userId);
-    if (!course || !enrollment) return reject('not_enrolled');
-    // Removed is checked before "not open": removal voids the open card, so it would match too (S41).
-    if (enrollment.removedAt) return reject('removed');
-    if (enrollment.status !== 'active' || course.status !== 'active') return reject('course_over');
-    const record = await getCardState(tx, userId, flashcardId);
-    if (!record?.sentAt) return reject('not_open');
-    if (input.messageTs && record.messageTs && input.messageTs !== record.messageTs) return reject('sent_again');
-
+    const guarded = await guardClick(tx, input);
+    if (!guarded.ok) return reject(guarded.reason);
+    const { card, course, enrollment, record, sentAt } = guarded;
     if (chosenOption !== null && (!Number.isInteger(chosenOption) || chosenOption < 0 || chosenOption >= card.options.length)) {
       throw new InvalidOptionError(chosenOption, card.options.length);
     }
@@ -84,7 +106,7 @@ export async function submitAnswer(deps: AnswerDeps, input: AnswerInput): Promis
     const applied = applyAnswer(card, record.state, answer, now);
 
     // The insert comes first: the unique delivery key is the lock, so a second click writes nothing.
-    const inserted = await insertReview(tx, { ...applied.review, userId, flashcardId, deliverySentAt: record.sentAt });
+    const inserted = await insertReview(tx, { ...applied.review, userId, flashcardId, deliverySentAt: sentAt });
     if (!inserted) return { status: 'duplicate' };
 
     const user = await getUser(tx, userId);

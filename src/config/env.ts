@@ -15,7 +15,7 @@ const envSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     SLACK_MODE: z.enum(['socket', 'http']).default('socket'),
     SLACK_BOT_TOKEN: z.string().startsWith('xoxb-', 'must start with "xoxb-"'),
-    SLACK_APP_TOKEN: z.string().startsWith('xapp-', 'must start with "xapp-"'),
+    SLACK_APP_TOKEN: z.string().startsWith('xapp-', 'must start with "xapp-"').optional(),
     SLACK_SIGNING_SECRET: z.string().optional(),
     SLACK_TEST_USER_ID: z.string().optional(),
     TENANT_TIMEZONE: z.string().refine(isIanaTimezone, 'must be a valid IANA time zone name').default('UTC'),
@@ -26,14 +26,17 @@ const envSchema = z
       .enum(['true', 'false'], 'must be "true" or "false"')
       .default('false')
       .transform((v) => v === 'true'),
+    // Bind host and port of the REST server. The loopback check for the student routes is `assertStudentRoutesAllowed` (src/api/loopback.ts), not here.
+    HOST: z.string().min(1).default('127.0.0.1'),
+    PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: z.string().optional(),
   })
   .superRefine((e, ctx) => {
     if (e.SLACK_MODE === 'http' && !e.SLACK_SIGNING_SECRET) {
       ctx.addIssue({ code: 'custom', path: ['SLACK_SIGNING_SECRET'], message: 'required when SLACK_MODE=http' });
     }
-    if (e.SLACK_MODE === 'socket' && !e.SLACK_TEST_USER_ID) {
-      ctx.addIssue({ code: 'custom', path: ['SLACK_TEST_USER_ID'], message: 'required when SLACK_MODE=socket' });
+    if (e.SLACK_MODE === 'socket' && !e.SLACK_APP_TOKEN) {
+      ctx.addIssue({ code: 'custom', path: ['SLACK_APP_TOKEN'], message: 'required when SLACK_MODE=socket' });
     }
     if (!e.DATABASE_URL && e.NODE_ENV !== 'test') {
       ctx.addIssue({ code: 'custom', path: ['DATABASE_URL'], message: 'required unless NODE_ENV=test' });

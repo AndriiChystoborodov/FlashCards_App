@@ -8,6 +8,13 @@
       "when": 1792948677432,
       "tag": "0000_flaky_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793035406996,
+      "tag": "0001_noisy_leo",
+      "breakpoints": true
     }
   ]
 }

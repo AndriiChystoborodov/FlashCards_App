@@ -235,7 +235,7 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | H1 | `ack()` is called before any await on services | yes |
 | H2 | button values never contain the correct answer | assert on built blocks |
 | H3 | malformed value: not a string, invalid JSON, wrong shape, negative or non-integer `o`, unknown `r`; for both `answer_*` and `rate_*` | no throw, `ack()` already called, a warning logged, service not called, message unchanged |
-| H4 | click by a user who does not own the card | rejected |
+| H4 | click by a user who does not own the card (another student's delivery, an unenrolled or unknown Slack user, a payload with someone else's card id) | rejected with the text of its code, no review, the owner's card still open |
 | H5 | right answer first click | rating buttons shown, no state change |
 | H6 | rating click | calculator called, message replaced with no buttons |
 | H7 | wrong or Don't know | right answer and material shown |
@@ -272,7 +272,7 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 6b-1 Daily tick | S19, S12; the tick completes the course at `ends_at`; a repeated tick sends nothing new; S39 (tick part); both Zurich DST days (2026-03-29, 2026-10-25); a student without a Slack id; failure isolation; `startTick` overlap and `stop()` (one real 20 ms interval); `localHour` for Zurich, Kolkata and New York |
 | 6b-2 Reminders, cleanup | S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
 | 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40, S45 (class progress needs the progress endpoint) |
-| 8 Slack wiring | H1 to H9; also H10 |
+| 8a Slack wiring | H1 to H10 against the real services and `FakeSlack` (`src/slack/handlers.test.ts`, `card.test.ts`); the adapter against a stub client (`web.test.ts`); live-only checks in [live-run.md](slack/live-run.md) |
 | 9 MCP | M1 to M4 |
 
 Split of S3, S10 and S34 ([decision 0025](decisions/0025-task5-answer-service-choices.md)): Task 5 checks the answer service part. S3: status `exempt`, score 100, `assessment_done_at` set, no card left open; "no cards" and "progress 100" are checked with `next()` (Task 6) and the progress endpoints (Task 7). S10: `sent_at` cleared and the review stored; "next card sent" is checked in Task 6. S34: one review for the delivery; "next card follows" is checked in Task 6. S16 (completion on the last learned card) is Task 6a: `afterAnswer` in `src/services/scheduler.ts` calls `completeIfLearned` after every answer.
