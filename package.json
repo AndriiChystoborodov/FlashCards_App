@@ -22,6 +22,7 @@
     "demo:seed": "tsx scripts/demo-seed.ts"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "2.4.0",
     "@slack/bolt": "5.1.0",
     "dotenv": "18.0.9",
     "drizzle-orm": "0.45.4",
@@ -31,6 +32,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.4.0",
     "@types/express": "5.0.6",
     "@types/node": "26.6.5",
     "@types/pg": "8.23.1",

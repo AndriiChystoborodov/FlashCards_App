@@ -19,6 +19,10 @@ import { FakeSlack } from '../src/slack/fake.js';
 import { REJECT_TEXT } from '../src/slack/card.js';
 import { registerHandlers, type ClickArgs } from '../src/slack/handlers.js';
 import { buildTrace, type TraceInput } from '../src/report/trace.js';
+import { Client } from '@modelcontextprotocol/client';
+import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
+import { createRestClient } from '../src/mcp/client.js';
+import { registerTools } from '../src/mcp/tools.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
 const url = env.DATABASE_URL;
@@ -43,6 +47,32 @@ const rest = async (method: string, path: string, body?: unknown, expected = 200
   assert.equal(r.status, expected, `${method} ${path}: expected ${expected}, got ${r.status} ${JSON.stringify(r.body)}`);
   return r.body;
 };
+
+/** The teacher's MCP tools (Task 9): the real tool module and REST client in this process, an in-memory MCP client, the REST API above. */
+async function connectMcp(token: string) {
+  const server = new McpServer({ name: 'retain', version: 'scenario' });
+  registerTools(server, createRestClient({ baseUrl: api.url, token }));
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverSide);
+  const client = new Client({ name: 'scenario', version: '1' });
+  await client.connect(clientSide);
+  const call = async (name: string, args: Record<string, unknown>) => (await client.callTool({ name, arguments: args })) as { isError?: boolean; content: { text: string }[] };
+  return {
+    /** A successful tool call: the parsed JSON result. */
+    async ok(name: string, args: Record<string, unknown> = {}) {
+      const r = await call(name, args);
+      assert.ok(!r.isError, `${name} failed: ${r.content[0]?.text}`);
+      return JSON.parse(r.content[0]!.text);
+    },
+    /** A refused tool call: the `code: message` text the model would see. */
+    async error(name: string, args: Record<string, unknown> = {}) {
+      const r = await call(name, args);
+      assert.ok(r.isError, `${name} should have been refused`);
+      return r.content[0]!.text;
+    },
+  };
+}
+let mcp!: Awaited<ReturnType<typeof connectMcp>>;
 
 // Filled by the seed step. Cards: assessment A1 to A3 (positions 1 to 3), then card-1 and six more.
 const ids = { tom: '', ann: '', bea: '', course: '', cards: [] as string[] };
@@ -134,25 +164,29 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 1 (REST): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing',
+    name: 'section 1 (MCP): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing',
     run: async () => {
       tomToken = await issueTeacherToken(db, { email: 'tom@x.test', fullName: 'Tom' });
       api = await listen({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false, bindHost: '127.0.0.1' });
       assert.equal((await api.call(null, 'GET', '/courses')).status, 401);
       assert.equal((await api.call('x'.repeat(43), 'GET', '/courses')).status, 401);
-      const course = await rest('POST', '/courses', { title: 'Security basics', material_url: 'https://wiki.example.com/security-policy', ends_at: '2026-01-16T22:59:00Z' }, 201); // Friday 23:59 Zurich
+      mcp = await connectMcp(tomToken);
+      assert.match(await (await connectMcp('x'.repeat(43))).error('list_courses'), /^unauthorized: /);
+      assert.equal((await mcp.ok('list_courses')).courses.length, 0);
+      const course = await mcp.ok('create_course', { title: 'Security basics', material_url: 'https://wiki.example.com/security-policy', ends_at: '2026-01-16T22:59:00Z' }); // Friday 23:59 Zurich
       assert.equal(course.status, 'draft');
       assert.equal(course.assessment_pass_threshold, 90);
-      const added = await rest('POST', `/courses/${course.course_id}/flashcards`, {
+      const added = await mcp.ok('add_flashcards', {
+        course_id: course.course_id,
         flashcards: Array.from({ length: 10 }, (_, i) => ({ question: `Q${i + 1}`, options: ['right', 'x', 'y'], correct_option: 0, is_assessment: i < 3 })),
-      }, 201);
+      });
       assert.deepEqual(added.flashcards.map((f: { position: number }) => f.position), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-      const enrolled = await rest('POST', `/courses/${course.course_id}/students`, { students: [{ email: 'ann@x.test', name: 'Ann' }, { email: 'bea@x.test', name: 'Bea' }] });
+      const enrolled = await mcp.ok('enroll_students', { course_id: course.course_id, students: [{ email: 'ann@x.test', name: 'Ann' }, { email: 'bea@x.test', name: 'Bea' }] });
       assert.deepEqual(enrolled.students.map((s: { enrolled: boolean; slack_matched: boolean }) => [s.enrolled, s.slack_matched]), [[true, true], [true, true]]);
-      const shown = await rest('GET', `/courses/${course.course_id}`);
+      const shown = await mcp.ok('get_course', { course_id: course.course_id });
       assert.deepEqual([shown.status, shown.card_count, shown.assessment_card_count, shown.student_count], ['draft', 10, 3, 2]);
       assert.equal(slack.posted.length, 0);
-      const students = await rest('GET', `/courses/${course.course_id}/students`);
+      const students = await mcp.ok('list_students', { course_id: course.course_id });
       const idByEmail = Object.fromEntries(students.students.map((s: { email: string; student_id: string }) => [s.email, s.student_id]));
       const [tom] = await db.select().from(schema.users).where(eq(schema.users.email, 'tom@x.test'));
       Object.assign(ids, { tom: tom!.id, ann: idByEmail['ann@x.test'], bea: idByEmail['bea@x.test'], course: course.course_id, cards: added.flashcards.map((f: { flashcard_id: string }) => f.flashcard_id) });
@@ -161,17 +195,20 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 1 (REST): start_course sends the start message and the first assessment card (A1) to Ann and Bea at once; a second start is refused',
+    name: 'section 1 (MCP): start_course (with confirmed) sends the start message and the first assessment card (A1) to Ann and Bea at once; a second start is refused',
     run: async () => {
-      const started = await rest('POST', `/courses/${ids.course}/start`);
+      const cards = (await mcp.ok('list_flashcards', { course_id: ids.course })).flashcards as { correct_option: number; is_assessment: boolean }[];
+      assert.deepEqual([cards.length, cards.filter((c) => c.is_assessment).length, cards.every((c) => c.correct_option === 0)], [10, 3, true]); // what the model must show before asking
+      await mcp.error('start_course', { course_id: ids.course }); // no confirmed: refused by the schema
+      assert.equal(slack.posted.length, 0);
+      const started = await mcp.ok('start_course', { course_id: ids.course, confirmed: true });
       assert.equal(started.status, 'active');
       assert.equal(started.starts_at, '2026-01-05T09:00:00.000Z');
       assert.equal(slack.posted.length, 4); // the start message, then A1, for each student
       assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.message.text), [TEXT.started, TEXT.started]);
       for (const u of [ids.ann, ids.bea]) assert.equal((await getOpenCard(db, u, ids.course))?.flashcardId, A(1));
       assert.match(slack.posted[2]!.message.text, /^Q: Q1\n1\. right/);
-      const again = await api.call(tomToken, 'POST', `/courses/${ids.course}/start`);
-      assert.deepEqual([again.status, again.body.error.code], [409, 'course_not_draft']);
+      assert.match(await mcp.error('start_course', { course_id: ids.course, confirmed: true }), /^course_not_draft: /);
       assert.equal(slack.posted.length, 4); // repeating sends nothing: the cards are open
     },
   },
@@ -364,16 +401,16 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 4 (REST): progress after Thursday 15 January: Ann learned/total, Bea exempt at 100, class average, per-card list, nobody waiting',
+    name: 'section 4 (MCP): progress after Thursday 15 January: Ann learned/total, Bea exempt at 100, class average, per-card list, nobody waiting',
     run: async () => {
       const learned = (await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann))).filter((r) => r.learnedAt).length;
       assert.ok(learned >= 2, `Ann has learned ${learned} cards`); // A1 and card-1 at least
-      const p = await rest('GET', `/courses/${ids.course}/progress`);
+      const p = await mcp.ok('get_class_progress', { course_id: ids.course });
       const byId = Object.fromEntries(p.students.map((s: { student_id: string }) => [s.student_id, s]));
       assert.deepEqual([byId[ids.ann].status, byId[ids.ann].learned, byId[ids.ann].total, byId[ids.ann].progress, byId[ids.ann].assessment_done, byId[ids.ann].waiting_since], ['active', learned, 10, learned * 10, true, null]);
       assert.deepEqual([byId[ids.bea].status, byId[ids.bea].progress, byId[ids.bea].assessment_done], ['exempt', 100, true]);
       assert.equal(p.class_progress, (learned * 10 + 100) / 2);
-      const one = await rest('GET', `/courses/${ids.course}/students/${ids.ann}/progress`);
+      const one = await mcp.ok('get_student_progress', { course_id: ids.course, student_id: ids.ann });
       assert.equal(one.cards.length, 10);
       assert.equal(one.cards.filter((c: { learned: boolean }) => c.learned).length, learned);
       const card1 = one.cards.find((c: { flashcard_id: string }) => c.flashcard_id === CARD(1));
@@ -406,43 +443,44 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 5 and 6 (REST): in a second course Tom removes Dee (open card replaced with "expired", idempotent) and stops the course (Cy completed, 0%, ended message)',
+    name: 'section 5 and 6 (MCP): in a second course Tom removes Dee (open card replaced with "expired", idempotent) and stops the course (Cy completed, 0%, ended message)',
     run: async () => {
       slack.directory.set('cy@x.test', { slackId: 'UCY', tz: 'Europe/Zurich' });
       slack.directory.set('dee@x.test', { slackId: 'UDEE', tz: 'Europe/Zurich' });
       clock.set(at('2026-01-17T09:00:00Z'));
-      const c = await rest('POST', '/courses', { title: 'Phishing', material_url: 'https://wiki.example.com/phishing', ends_at: '2026-02-01T00:00:00Z' }, 201);
-      await rest('POST', `/courses/${c.course_id}/flashcards`, { flashcards: [{ question: 'P1', options: ['right', 'x'], correct_option: 0, is_assessment: true }, { question: 'P2', options: ['right', 'x'], correct_option: 0, is_assessment: false }] }, 201);
-      await rest('POST', `/courses/${c.course_id}/students`, { students: [{ email: 'cy@x.test', name: 'Cy' }, { email: 'dee@x.test', name: 'Dee' }] });
-      await rest('POST', `/courses/${c.course_id}/start`);
-      const list = (await rest('GET', `/courses/${c.course_id}/students`)).students as { student_id: string; email: string }[];
+      const c = await mcp.ok('create_course', { title: 'Phishing', material_url: 'https://wiki.example.com/phishing', ends_at: '2026-02-01T00:00:00Z' });
+      await mcp.ok('add_flashcards', { course_id: c.course_id, flashcards: [{ question: 'P1', options: ['right', 'x'], correct_option: 0, is_assessment: true }, { question: 'P2', options: ['right', 'x'], correct_option: 0, is_assessment: false }] });
+      await mcp.ok('enroll_students', { course_id: c.course_id, students: [{ email: 'cy@x.test', name: 'Cy' }, { email: 'dee@x.test', name: 'Dee' }] });
+      await mcp.ok('start_course', { course_id: c.course_id, confirmed: true });
+      const list = (await mcp.ok('list_students', { course_id: c.course_id })).students as { student_id: string; email: string }[];
       const cy = list.find((s) => s.email === 'cy@x.test')!.student_id;
       const dee = list.find((s) => s.email === 'dee@x.test')!.student_id;
       const deeCard = await getOpenCard(db, dee, c.course_id);
       assert.ok(deeCard?.messageTs);
 
-      await rest('DELETE', `/courses/${c.course_id}/students/${dee}`, undefined, 204);
+      await mcp.ok('remove_student', { course_id: c.course_id, student_id: dee, confirmed: true });
       assert.equal(slack.replaced.at(-1)?.message.text, TEXT.removed);
       assert.equal(slack.replaced.at(-1)?.ts, deeCard.messageTs);
       assert.equal(await getOpenCard(db, dee, c.course_id), null);
       const replaced = slack.replaced.length;
-      await rest('DELETE', `/courses/${c.course_id}/students/${dee}`, undefined, 204);
+      await mcp.ok('remove_student', { course_id: c.course_id, student_id: dee, confirmed: true });
       assert.equal(slack.replaced.length, replaced);
-      assert.equal((await rest('GET', `/courses/${c.course_id}`)).student_count, 1);
-      assert.deepEqual((await rest('GET', `/courses/${c.course_id}/progress`)).students.map((s: { student_id: string }) => s.student_id), [cy]);
+      assert.equal((await mcp.ok('get_course', { course_id: c.course_id })).student_count, 1);
+      assert.deepEqual((await mcp.ok('get_class_progress', { course_id: c.course_id })).students.map((s: { student_id: string }) => s.student_id), [cy]);
 
       const cyCard = await getOpenCard(db, cy, c.course_id);
       const posts = slack.posted.length;
-      const stopped = await rest('POST', `/courses/${c.course_id}/stop`);
+      await mcp.error('stop_course', { course_id: c.course_id }); // no confirmed
+      assert.equal(slack.posted.length, posts);
+      const stopped = await mcp.ok('stop_course', { course_id: c.course_id, confirmed: true });
       assert.equal(stopped.status, 'finished');
-      const after = (await rest('GET', `/courses/${c.course_id}/students`)).students;
+      const after = (await mcp.ok('list_students', { course_id: c.course_id })).students;
       assert.deepEqual(after.map((s: { status: string }) => s.status), ['completed']);
       assert.equal((await enrollmentOf(cy)).completedProgress, 0);
       assert.equal(slack.posted.length, posts + 1);
       assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended(0));
       assert.equal(slack.replaced.at(-1)?.ts, cyCard?.messageTs); // Cy's open card is closed
-      const twice = await api.call(tomToken, 'POST', `/courses/${c.course_id}/stop`);
-      assert.deepEqual([twice.status, twice.body.error.code], [409, 'course_not_active']);
+      assert.match(await mcp.error('stop_course', { course_id: c.course_id, confirmed: true }), /^course_not_active: /);
     },
   },
   {
@@ -485,7 +523,6 @@ const steps: Step[] = [
 
 // Walkthrough sections that need later tasks (docs/scenario.md). Listed, not run.
 const pending = [
-  '1, 4, 5 through the MCP tools instead of REST: Task 9',
   '6 edge cases (reminders, removal and cleanup; stale-claim recovery runs above; the second click is checked above): Task 6b-2',
 ];
 

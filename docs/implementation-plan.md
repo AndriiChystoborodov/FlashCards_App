@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Tasks 1 to 5, 6a, 6b-1, 7 and 8a are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md), [0026](decisions/0026-task6-scheduler-choices.md), [0027](decisions/0027-task6b1-tick-choices.md), [0028](decisions/0028-task7-rest-api-choices.md), [0029](decisions/0029-task8-slack-wiring-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Tasks 1 to 5, 6a, 6b-1, 7, 8a and 9 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md), [0026](decisions/0026-task6-scheduler-choices.md), [0027](decisions/0027-task6b1-tick-choices.md), [0028](decisions/0028-task7-rest-api-choices.md), [0029](decisions/0029-task8-slack-wiring-choices.md), [0031](decisions/0031-task9-mcp-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -13,10 +13,11 @@ Design phase output, 2026-10-24. Tasks 1 to 5, 6a, 6b-1, 7 and 8a are built ([00
 | Scheduler | [scheduler.md](scheduler.md) |
 | Slack integration | [slack/integration.md](slack/integration.md) (setup in [slack/README.md](slack/README.md)) |
 | MCP for teachers | [mcp-teacher-api.md](mcp-teacher-api.md) |
+| Using it with real students | [real-use.md](real-use.md) |
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
 | End-to-end scenario | [scenario.md](scenario.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0030 |
+| Decisions | [decisions/](decisions/) 0002 to 0031 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -57,7 +58,7 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 7 REST API (built) | [rest-api.md](rest-api.md) with token middleware; `src/api/`, `src/services/{courses,flashcards,enrollment,progress,studentReview,auth}.ts`, `scripts/issue-teacher-token.ts`; scenario sections 1, 4, 5 and the removal part of 6 go through REST ([decision 0028](decisions/0028-task7-rest-api-choices.md)) | R1 to R11, R12 to R19, R21 to R29, S20, S40, S45 (R18 and the reminder part of R23 simulated until 6b-2) |
 | 8a Slack wiring (built, text cards; first live run 2026-10-26: course start DM, cards, message replacement, right + Easy and the exempt DM verified against real Slack; wrong answer, double click, ack timing, outage/429, tick and stop DM still unverified, see [live-run.md](slack/live-run.md)) | handlers to the answer service, enrollment lookup, course notifications; `src/index.ts` calls `startTick` with the real Slack adapter (`intervalMs` from `TICK_MINUTES`, `sendHour` from `SEND_HOUR`) and implements `SlackPort` with Bolt; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) `src/index.ts` starts the HTTP server with `startServer` from `src/api/server.ts` and a `bindHost` (the same helper `npm run api` and the tests use), so the loopback check for the student routes cannot be skipped ([decision 0028](decisions/0028-task7-rest-api-choices.md#amendment-student-routes-only-on-a-loopback-host)). | H1 to H10 ([decision 0029](decisions/0029-task8-slack-wiring-choices.md), [live-run.md](slack/live-run.md)) |
 | 8b Image card | spike only, not approved: render the question as an image and upload it (`files:write`) | a decision for the user |
-| 9 MCP | [mcp-teacher-api.md](mcp-teacher-api.md) | M1 to M4 |
+| 9 MCP (built) | [mcp-teacher-api.md](mcp-teacher-api.md): 16 tools in `src/mcp/` (stdio, thin REST client, `confirmed: true` on start, stop, delete and remove), registration for Claude Desktop and Claude Code, [real-use.md](real-use.md) for the pilot; scenario sections 1, 4, 5 and the removal through the tools ([decision 0031](decisions/0031-task9-mcp-choices.md)) | M1 to M11 |
 
 Task 4a is proposed to sit right after Task 4 (numbering of the others is unchanged). After every task the scenario script runs and is extended.
 

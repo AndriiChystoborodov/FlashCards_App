@@ -251,6 +251,13 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | M2 | API 4xx | tool result has `isError` |
 | M3 | invalid input | rejected by zod before the HTTP call |
 | M4 | start and stop descriptions mention notifications; update and delete flashcard say draft only | yes |
+| M5 | `start_course`, `stop_course`, `delete_course`, `remove_student` without `confirmed: true` (omitted, false, `"true"`, 1, null, an array, an extra key next to true) | `isError`, no HTTP call; the flag is never sent to the API |
+| M6 | `start_course` description orders: `list_flashcards`, show ALL cards with their correct options, ask for confirmation, then call | yes (wording test) |
+| M7 | no token in any tool result or error: API message that echoes it, fetch error with the URL and token inside, a timeout; redirects are not followed; the config check never prints a value or a URL with credentials | yes |
+| M8 | smoke (`src/mcp/smoke.test.ts`): the real stdio server as a child process against the real REST app on `retain_test`: 16 tools; one call per family (courses, flashcards, students, progress); `start_course` without the flag refused and nothing posted, with it the course is active and students are messaged; second start is `isError` `course_not_draft`; `update_flashcard` on the running course is `course_not_draft`; a wrong token is `unauthorized` | yes |
+| M9 | the server refuses to start without `RETAIN_API_URL`, without `RETAIN_API_TOKEN`, or with credentials in the URL: exit 1, the variable named on stderr, no value printed | yes |
+| M10 | stdout of the child holds only JSON-RPC messages: every line parses (also on the refusal path, where it is empty) | yes |
+| M11 | the tool table in `mcp-teacher-api.md` lists the same names as `src/mcp/tools.ts` | yes |
 
 ## Non-functional checks
 
@@ -273,7 +280,7 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 6b-2 Reminders, cleanup | S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
 | 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40, S45 (class progress needs the progress endpoint) |
 | 8a Slack wiring | H1 to H10 against the real services and `FakeSlack` (`src/slack/handlers.test.ts`, `card.test.ts`); the adapter against a stub client (`web.test.ts`); live-only checks in [live-run.md](slack/live-run.md) |
-| 9 MCP | M1 to M4 |
+| 9 MCP | M1 to M11 |
 
 Split of S3, S10 and S34 ([decision 0025](decisions/0025-task5-answer-service-choices.md)): Task 5 checks the answer service part. S3: status `exempt`, score 100, `assessment_done_at` set, no card left open; "no cards" and "progress 100" are checked with `next()` (Task 6) and the progress endpoints (Task 7). S10: `sent_at` cleared and the review stored; "next card sent" is checked in Task 6. S34: one review for the delivery; "next card follows" is checked in Task 6. S16 (completion on the last learned card) is Task 6a: `afterAnswer` in `src/services/scheduler.ts` calls `completeIfLearned` after every answer.
 
