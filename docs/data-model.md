@@ -102,7 +102,7 @@ Scheduler-only columns on the same row (not part of `CardState`):
 | reminder_count | reminders sent for this delivery, default 0 |
 | message_channel, message_ts | the open Slack message |
 
-A row exists from the moment the card is sent, not at enrollment.
+A row exists from the moment the card is sent, not at enrollment. An answer clears `sent_at`, `reminded_at` and `reminder_count` and keeps `message_channel` and `message_ts` (decision 0025).
 
 ## reviews
 

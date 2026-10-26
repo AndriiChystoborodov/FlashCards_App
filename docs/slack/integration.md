@@ -68,6 +68,17 @@ app.action(/^rate_/, async ({ ack, action, body, respond, logger }) => {
 
 The service checks the clicker owns the card, `sent_at` is set, and the message `ts` matches `message_ts`. After a reminder the card has a new `message_ts`; a click on the older message gets "sent again, use the latest message" ([scheduler.md](../scheduler.md#unanswered-cards)). After the outcome it calls `respond({ replace_original: true, ... })` (5 uses within 30 minutes). Two fast clicks can still arrive together, so the reviews unique key is the real lock.
 
+Refusals from `submitAnswer` (`src/services/answer.ts`), one code per text:
+
+| code | text |
+| --- | --- |
+| `sent_again` | "This card was sent again, use the latest message" |
+| `removed` | "You are no longer enrolled in this course" |
+| `course_over` | "The course is over" |
+| `not_open` | none in the design yet (the spike's "This card was already answered." fits) |
+| `not_enrolled` | none yet |
+| `duplicate` | no text: ignore it and show the replaced message |
+
 Outcome messages:
 - Right: "Right. How hard was it?" with Hard / Medium / Easy.
 - Wrong or Don't know: the right answer and `material_url`.

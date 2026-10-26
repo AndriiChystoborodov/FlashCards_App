@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Tasks 1 to 4 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Tasks 1 to 5 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -15,7 +15,7 @@ Design phase output, 2026-10-24. Tasks 1 to 4 are built ([0019](decisions/0019-e
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
 | End-to-end scenario | [scenario.md](scenario.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0024 |
+| Decisions | [decisions/](decisions/) 0002 to 0025 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -49,7 +49,7 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 3 Calculator | [fsrs-calculator.md](fsrs-calculator.md) plus `evaluateAssessment` | test cases C1 to C23, A1 to A9 |
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md) (hosting superseded by [0023](decisions/0023-local-first.md)); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review`; D1 to D12 ([decision 0022](decisions/0022-task4-schema-choices.md)) |
 | 4a End-to-end scenario script (**proposed placement**, [0023](decisions/0023-local-first.md)) | a TypeScript script run with `tsx` that follows [walkthrough.md](walkthrough.md): the teacher creates a course and flashcards, enrolls students, student answers arrive as simulated Slack actions through a fake Slack, and the REST API is driven against local Postgres. Each step has an expected result; a failed step stops with a clear message. Includes a DB reset/init script (migrate + clean) and an injectable clock interface (`now()`), so the script can advance days. Services and the scheduler read time only from that clock. 4a delivers the reset script, the clock and a skeleton; each later task extends the scenario ([scenario.md](scenario.md), [decision 0024](decisions/0024-task4a-scenario-choices.md)) | `npm run scenario` passes the steps available so far; reset script rebuilds an empty database |
-| 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only) | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52 |
+| 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only). Built as `submitAnswer` in `src/services/answer.ts` and `src/domain/localDay.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)); completing an enrollment after the last learned card is Task 6 (S16), so until then a student at 100% stays `active` | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52, service part only for S3, S10, S34 (the Task 6 and 7 rows add the rest) |
 | 6 Scheduler | selection, tick, idempotent send | S1, S5 to S9, S11, S12, S15 to S19, S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11, R12 to R19, R21 to R29, S20, S40 |
 | 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) | H1 to H9, H10 |

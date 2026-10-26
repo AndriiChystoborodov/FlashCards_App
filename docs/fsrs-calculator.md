@@ -105,6 +105,8 @@ If the streak is 2 or more and the gap is too short, the card stays unlearned an
 
 Not part of `applyAnswer` ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). After `applyAnswer` returns, the answer service computes `dueNotAfter`, the end of the local day (student timezone) before `courses.ends_at`. If `state.due > dueNotAfter` and `dueNotAfter > now`, it sets `state.due = dueNotAfter` before saving. Other fields, including `scheduled_days`, stay as ts-fsrs returned them. When `dueNotAfter <= now` (the answer is given on the last day or later) nothing is clamped: a due in the past would make the card come straight back, and a due after `ends_at` is never sent anyway.
 
+Built in `src/services/answer.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)). `dueNotAfter` is `startOfLocalDay(local day of ends_at) - 1 ms` and `endOfLocalDay` is the last millisecond of the local day, both from `Intl` in `src/domain/localDay.ts` (pure, no Temporal; a day is 23 or 25 hours across DST, so it is never `ends_at - 24 h`). The student's timezone is `users.tz`; an invalid value falls back to `TENANT_TIMEZONE` with a warning. Example: `ends_at` Friday 16 January 23:59 Zurich gives `2026-01-15T22:59:59.999Z`, the end of Thursday.
+
 A clamped card may be reviewed less than 7 days after the previous review and then cannot become learned at that review. This is accepted: progress shows it honestly.
 
 ## Assessment evaluation
@@ -123,7 +125,7 @@ export function evaluateAssessment(
 - Zero assessment cards: `evaluateAssessment([], t)` returns `{ passedFlags: [], score: null, exempt: false }`. The service still sets `enrollments.assessment_done_at = now` immediately (see [scheduler.md](scheduler.md#selecting-the-next-card)), leaves `assessment_score` null and continues in normal mode. Without this the assessment branch would never end.
 - `exempt = score >= threshold`. Exempt: enrollment status `exempt`, progress 100, DM "you already know this material".
 - Not exempt: passed assessment cards get `learnedAt = now` at once and are not sent again (exception to the streak rule). Other assessment cards continue with their FSRS state like normal cards, and all other cards are introduced N per day, with N computed daily ([decision 0006](decisions/0006-new-cards-per-day.md)).
-- `evaluateAssessment` returns flags only. The answer service (Task 5) sets `learnedAt = now` on the passed assessment cards; the domain does not.
+- `evaluateAssessment` returns flags only. The answer service (Task 5, `src/services/answer.ts`) sets `learnedAt = now` on the passed assessment cards in the not-exempt case; the domain does not. It evaluates when the last assessment card is answered, using the first review of each assessment card, and also sets `assessment_done_at`, `assessment_score` and, when exempt, `status = 'exempt'`.
 - `threshold` is not validated here (services/zod validate it). `score` is a percent 0 to 100.
 - Assessment answers go through `applyAnswer` first, so their FSRS state and reviews are stored the same way.
 

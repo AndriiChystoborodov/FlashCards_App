@@ -132,6 +132,24 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | S23 | `due` just after local midnight in another timezone | selected on the right local day |
 | S20 | progress and class progress | learned / total, averages, exempt = 100 |
 
+### Answer service (Task 5)
+
+`src/services/answer.test.ts` and `src/domain/localDay.test.ts`, on the test database. Besides the S ids in the table above:
+
+| case | expected |
+| --- | --- |
+| walkthrough section 2: Easy, Medium, "Don't know" | score 33.33, not exempt, `assessment_done_at` set once, only the Easy card `learned_at`; a later click is `not_open` and `assessment_done_at` does not move |
+| Hard or Medium on assessment cards | not a pass, score 0 |
+| a normal card answered while the assessment is open | no evaluation |
+| score equal to the threshold | exempt |
+| two clicks at the same time (`Promise.all`) | one `answered`, the other `duplicate` or `not_open`, one review row |
+| `chosenOption` outside the options, or a right answer without a rating | `InvalidOptionError` or `MissingRatingError`, no review, `sent_at` kept |
+| rejection reasons | `not_open`, `not_enrolled`, `removed`, `course_over` (completed enrollment, finished course), `sent_again`; nothing stored |
+| clamp | S49 to S52, S37 for Auckland, Los Angeles and the Zurich spring-forward day; stored state equals `applyAnswer` except `due` |
+| invalid `users.tz` | falls back to `TENANT_TIMEZONE`, one `console.warn` with the user id and the value; a null `tz` does not warn |
+| no real clock | the source of `answer.ts` has no `new Date()` or `Date.now` |
+| `endOfLocalDay`, `dueNotAfter` | Zurich 2026-03-29 (23 h) and 2026-10-25 (25 h), a moment after local midnight, Auckland, Los Angeles, Kolkata, year end |
+
 ## REST routes
 
 | id | case | expected |
@@ -205,10 +223,12 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 1 Project setup | R20 (env validation; already in `src/config/env.test.ts`) |
 | 3 Calculator | C1 to C23, A1 to A9 |
 | 4 Schema and repositories | D1 to D12 |
-| 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52 |
+| 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52; for S3, S10 and S34 only the service part (below) |
 | 6 Scheduler | S1, S5 to S9, S11, S12, S15 to S19; also S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
 | 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40 |
 | 8 Slack wiring | H1 to H9; also H10 |
 | 9 MCP | M1 to M4 |
+
+Split of S3, S10 and S34 ([decision 0025](decisions/0025-task5-answer-service-choices.md)): Task 5 checks the answer service part. S3: status `exempt`, score 100, `assessment_done_at` set, no card left open; "no cards" and "progress 100" are checked with `next()` (Task 6) and the progress endpoints (Task 7). S10: `sent_at` cleared and the review stored; "next card sent" is checked in Task 6. S34: one review for the delivery; "next card follows" is checked in Task 6. S16 (completion on the last learned card) is Task 6.
 
 Assignment reasons: S31, S33, S34, S41 are answer-service checks on a click (no review stored, no state change), like S13 and S14; S42 is `next()` selection; S20 is the progress endpoints and S40 is the removal route, both in the REST API.

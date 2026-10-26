@@ -1,6 +1,7 @@
+import { and, asc, eq } from 'drizzle-orm';
 import type { Review } from '../domain/calculator.js';
 import type { DbOrTx } from './client.js';
-import { reviews } from './schema.js';
+import { flashcards, reviews } from './schema.js';
 
 export type ReviewRecord = Review & { userId: string; flashcardId: string; deliverySentAt: Date };
 
@@ -20,4 +21,21 @@ export async function insertReview(db: DbOrTx, r: ReviewRecord): Promise<boolean
     .onConflictDoNothing()
     .returning({ id: reviews.id });
   return inserted.length > 0;
+}
+
+/** The first review of each assessment card of the course the user has answered, in card position order (the assessment answers; later reviews are normal FSRS reviews). */
+export async function listAssessmentReviews(
+  db: DbOrTx,
+  userId: string,
+  courseId: string,
+): Promise<{ flashcardId: string; isCorrect: boolean; rating: Review['rating'] }[]> {
+  const rows = await db
+    .select({ flashcardId: reviews.flashcardId, isCorrect: reviews.isCorrect, rating: reviews.rating, reviewedAt: reviews.reviewedAt })
+    .from(reviews)
+    .innerJoin(flashcards, eq(flashcards.id, reviews.flashcardId))
+    .where(and(eq(reviews.userId, userId), eq(flashcards.courseId, courseId), eq(flashcards.isAssessment, true)))
+    .orderBy(asc(flashcards.position), asc(reviews.reviewedAt));
+  const first = new Map<string, (typeof rows)[number]>();
+  for (const r of rows) if (!first.has(r.flashcardId)) first.set(r.flashcardId, r);
+  return [...first.values()].map(({ flashcardId, isCorrect, rating }) => ({ flashcardId, isCorrect, rating: rating as Review['rating'] }));
 }

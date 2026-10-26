@@ -133,6 +133,8 @@ sequenceDiagram
 
 Steps 3 to 4 run in one transaction.
 
+Built in Task 5 as `submitAnswer` in `src/services/answer.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)): it covers steps 3 and 4 (the Slack first click and steps 1, 2 and 5 are Task 8 and Task 6). It checks the card in this order and refuses with a reason code, storing nothing: `removed`, `course_over`, `not_open`, `sent_again` (plus `not_enrolled`). A repeated delivery returns `duplicate`. An answer clears `sent_at`, `reminded_at` and `reminder_count`. It does not complete an enrollment: until Task 6 (S16) a student with every card learned stays `active`.
+
 ## Load
 
 1,000 students at a few to a dozen cards per day is a few thousand DMs. Send sequentially; the Slack client retries on HTTP 429 using `Retry-After`. `chat.postMessage` is roughly 1 message per second per channel with bursts allowed, and each student's DM is its own channel. No rate limiter is built for the MVP. Do not use `Promise.all` over the whole class.

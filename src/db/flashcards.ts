@@ -4,3 +4,8 @@ import { flashcards } from './schema.js';
 
 export const listFlashcardsByCourse = (db: DbOrTx, courseId: string) =>
   db.select().from(flashcards).where(eq(flashcards.courseId, courseId)).orderBy(asc(flashcards.position));
+
+export async function getFlashcard(db: DbOrTx, id: string) {
+  const [row] = await db.select().from(flashcards).where(eq(flashcards.id, id));
+  return row ?? null;
+}
