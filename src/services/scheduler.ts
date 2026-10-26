@@ -34,6 +34,9 @@ export const TEXT = {
   completed: 'Congratulations, you have learned every card of this course.',
   ended: (progress: number) => `The course has ended. Your final progress is ${Math.round(progress)}%.`,
   expired: 'The course is over.',
+  started: 'A new course has started for you. Your first card follows.',
+  restored: 'You are enrolled in this course again. Your progress is kept.',
+  removed: 'expired',
 };
 
 /**
@@ -140,7 +143,7 @@ export async function sendFirstCards(deps: SchedulerDeps, courseId: string): Pro
   return sent;
 }
 
-async function dm(deps: SchedulerDeps, userId: string, text: string): Promise<void> {
+export async function dm(deps: SchedulerDeps, userId: string, text: string): Promise<void> {
   const user = await getUser(deps.db, userId);
   const to = user?.slackDmChannel ?? user?.slackId;
   if (to) await deps.slack.postCard(to, textOnly(text));

@@ -85,3 +85,11 @@ export async function setCardMessage(db: DbOrTx, userId: string, flashcardId: st
     .set({ messageChannel: channel, messageTs: ts })
     .where(and(eq(cardStates.userId, userId), eq(cardStates.flashcardId, flashcardId), sentAt ? eq(cardStates.sentAt, sentAt) : undefined));
 }
+
+/** Removal (decision 0017): the open card is voided so a restore does not leave a dead message. Progress is untouched. */
+export async function voidOpenCard(db: DbOrTx, userId: string, flashcardId: string): Promise<void> {
+  await db
+    .update(cardStates)
+    .set({ sentAt: null, messageTs: null, remindedAt: null, reminderCount: 0 })
+    .where(and(eq(cardStates.userId, userId), eq(cardStates.flashcardId, flashcardId)));
+}

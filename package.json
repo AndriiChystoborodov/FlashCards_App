@@ -15,17 +15,21 @@
     "db:migrate": "drizzle-kit migrate",
     "db:up": "docker compose up -d --wait db",
     "db:reset": "tsx src/db/reset.ts",
-    "scenario": "tsx scripts/scenario.ts"
+    "scenario": "tsx scripts/scenario.ts",
+    "teacher:token": "tsx scripts/issue-teacher-token.ts",
+    "api": "tsx scripts/dev-api.ts"
   },
   "dependencies": {
     "@slack/bolt": "5.1.0",
     "dotenv": "18.0.9",
     "drizzle-orm": "0.45.4",
+    "express": "5.3.0",
     "pg": "8.23.1",
     "ts-fsrs": "5.4.2",
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@types/express": "5.0.6",
     "@types/node": "26.6.5",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",

@@ -8,7 +8,7 @@ Vitest. Tests sit next to the code (`src/**/*.test.ts`, as `vitest.config.ts` di
 | --- | --- | --- |
 | Unit | `src/domain/` pure functions | nothing; `enable_fuzz: false`, `now` passed in |
 | Service | scheduler, answer, enrollment services | test database, fake Slack interface |
-| Route | REST with supertest | test database, fake services where useful |
+| Route | REST over real HTTP on `127.0.0.1:0` with Node's `fetch` (`src/api/testClient.ts`; no supertest, one dependency fewer, [decision 0028](decisions/0028-task7-rest-api-choices.md)) | test database, fake Slack |
 | Slack handler | Bolt handlers with fake `ack`, `respond` | fake service |
 | MCP | tools against a fake REST server | SDK in-memory client and server |
 | Manual spike | real Slack workspace | Roadmap Task 2 only |
@@ -194,18 +194,18 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | R7 | delete or patch (incl. `is_assessment`) a flashcard in an `active` course | 409 `course_not_draft`, card unchanged |
 | R12 | delete and patch in a `draft` course | allowed |
 | R13 | add cards to an `active` course | 201; position at the end; `is_assessment: true` gives 400 `assessment_closed` |
-| R14 | add, patch or delete in a `finished` course | 409 |
+| R14 | add, patch or delete in a `finished` course | 409: add is `course_finished`, patch and delete are `course_not_draft` ([decision 0016](decisions/0016-flashcards-frozen-after-start.md)) |
 | R15 | `DELETE .../students/:studentId` | `removed_at` set, 204; the student disappears from list, progress and `student_count` |
 | R16 | the same call again | 204, `removed_at` unchanged |
 | R17 | re-enroll within 14 days | `removed_at` cleared, progress and `card_states` intact, `restored: true` |
-| R18 | re-enroll after the cleanup | new enrollment, assessment first, no old reviews |
+| R18 | re-enroll after the cleanup | new enrollment, assessment first, no old reviews. **Simulated until 6b-2**: the daily cleanup job is not built, so the test advances the clock 15 days and the enroll route runs the same `hardDeleteEnrollment` the job will reuse; the job itself (S43, S44, S47) is 6b-2 |
 | R19 | student routes with `STUDENT_ROUTES_ENABLED` unset or false | 404 |
 | R20 | env validation: `STUDENT_ROUTES_ENABLED=true` with `NODE_ENV=production` | startup fails with a clear message |
 | R21 | PATCH `is_assessment` on an `active` course | 409 `course_not_draft` |
 | R22 | progress endpoints with an open card and with none | `waiting_since` is the card's `sent_at`, or null |
-| R23 | card sent, then `MAX_REMINDERS` reminders pass with no answer; `GET /courses/:courseId/students/:studentId/progress` and the class `GET /courses/:courseId/progress` | the student's `waiting_since` equals the open card's original `sent_at` (reminders do not change it); no new card was sent |
+| R23 | card sent, then `MAX_REMINDERS` reminders pass with no answer; `GET /courses/:courseId/students/:studentId/progress` and the class `GET /courses/:courseId/progress` | the student's `waiting_since` equals the open card's original `sent_at` (reminders do not change it); no new card was sent **Simulated until 6b-2**: reminders are not built, so the test advances the clock 10 days and sets `reminder_count` 3 and `reminded_at` directly; the real reminder path (S18, S32, S48) is 6b-2 |
 | R24 | the student then answers the card | `waiting_since` is null in both endpoints |
-| R25 | open card, then the student is removed | the student is gone from the lists; after a restore `waiting_since` is null until the voided card is sent again |
+| R25 | open card, then the student is removed | the student is gone from the lists; after a restore into an `active` course the voided card is sent again at once (like a new enrollment, [decision 0028](decisions/0028-task7-rest-api-choices.md)), so `waiting_since` is that new `sent_at`, not the old one (null only for a student without a Slack id) |
 | R26 | PATCH `assessment_pass_threshold` on an `active` course | 409 `threshold_locked`, value unchanged |
 | R27 | PATCH `ends_at` to an earlier value on an `active` course | 409 `ends_at_shortened`, value unchanged |
 | R28 | PATCH `ends_at` to a later value on an `active` course; PATCH `ends_at` and `assessment_pass_threshold` on a `draft` course | 200, values saved |
@@ -214,6 +214,19 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | R9 | review without rating on a right answer | 400 |
 | R10 | review with rating on a wrong answer | 200, rating null |
 | R11 | `correct_option` appears in the response only after answer | yes |
+
+### REST routes (Task 7)
+
+Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src/api/harness.ts`). Files and what they cover:
+
+| file | ids |
+| --- | --- |
+| `src/api/courses.test.ts` | R1, R2 (and the table-driven check that every teacher route returns 404 for another teacher and changes no row), R3, R5, R6, R26 to R29, delete, bad JSON / content type / huge body / malformed ids, token never in bodies or logs |
+| `src/api/flashcards.test.ts` | R4, R7, R12, R13, R14, R21, concurrent adds get distinct positions |
+| `src/api/class.test.ts` | R8, R15 to R17, R18 (simulated), S40, S45 |
+| `src/api/progress.test.ts` | R22 to R25 (R23 simulated), S20, rounding, per-card list |
+| `src/api/student.test.ts` | R9 to R11, R19 |
+| `src/services/auth.test.ts` | token hash, reissue revokes, student email refused; no `new Date()` / `Date.now` in the new services and routes |
 
 ## Slack handlers
 

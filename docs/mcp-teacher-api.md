@@ -60,7 +60,7 @@ Tool descriptions for `update_flashcard` and `delete_flashcard` say "draft cours
 
 ## Auth to the REST API
 
-One bearer token per teacher ([decision 0014](decisions/0014-teacher-token-hashed.md)). The REST middleware hashes it and finds `users.api_token_hash`. Token issuing for the MVP: a one-off script writes the hash and prints the token once.
+One bearer token per teacher ([decision 0014](decisions/0014-teacher-token-hashed.md)). The REST middleware hashes it and finds `users.api_token_hash`. Token issuing for the MVP: `npm run teacher:token -- <email> "<name>"` (`scripts/issue-teacher-token.ts`, built in Task 7) creates the teacher if needed, writes the hash and prints the token once.
 
 ## Example session
 

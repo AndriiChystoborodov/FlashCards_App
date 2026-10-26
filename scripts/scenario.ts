@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { eq } from 'drizzle-orm';
+import { createApp } from '../src/api/app.js';
+import { listen, type Api } from '../src/api/testClient.js';
 import { createControlledClock } from '../src/clock.js';
 import { env } from '../src/config/env.js';
 import { getCardState } from '../src/db/cardStates.js';
@@ -10,7 +12,8 @@ import { createDb } from '../src/db/client.js';
 import { resetDatabase } from '../src/db/reset.js';
 import * as schema from '../src/db/schema.js';
 import { submitAnswer } from '../src/services/answer.js';
-import { afterAnswer, sendFirstCards, sendNext, TEXT } from '../src/services/scheduler.js';
+import { issueTeacherToken } from '../src/services/auth.js';
+import { afterAnswer, sendNext, TEXT } from '../src/services/scheduler.js';
 import { runTick } from '../src/services/tick.js';
 import { FakeSlack } from '../src/slack/fake.js';
 
@@ -27,6 +30,16 @@ const clock = createControlledClock(at('2026-01-05T09:00:00Z')); // Monday 5 Jan
 const { db, pool } = createDb(url);
 const slack = new FakeSlack();
 const deps = { db, clock, tenantTimezone: env.TENANT_TIMEZONE, slack };
+// The REST API runs in this process on 127.0.0.1 and a random port; Tom's token comes from the same function as `npm run teacher:token`.
+slack.directory.set('ann@x.test', { slackId: 'UANN', tz: 'Europe/Zurich' });
+slack.directory.set('bea@x.test', { slackId: 'UBEA', tz: 'Europe/Zurich' });
+let api!: Api;
+let tomToken = '';
+const rest = async (method: string, path: string, body?: unknown, expected = 200) => {
+  const r = await api.call(tomToken, method, path, body);
+  assert.equal(r.status, expected, `${method} ${path}: expected ${expected}, got ${r.status} ${JSON.stringify(r.body)}`);
+  return r.body;
+};
 
 // Filled by the seed step. Cards: assessment A1 to A3 (positions 1 to 3), then card-1 and six more.
 const ids = { tom: '', ann: '', bea: '', course: '', cards: [] as string[] };
@@ -110,37 +123,45 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 1 (seeded directly, REST and MCP come later): active course, 10 cards, Ann and Bea enrolled',
+    name: 'section 1 (REST): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing',
     run: async () => {
-      const [tom, ann, bea] = await db.insert(schema.users).values([
-        { fullName: 'Tom', email: 'tom@x.test', role: 'teacher' },
-        { fullName: 'Ann', email: 'ann@x.test', role: 'student', tz: 'Europe/Zurich', slackId: 'UANN' },
-        { fullName: 'Bea', email: 'bea@x.test', role: 'student', tz: 'Europe/Zurich', slackId: 'UBEA' },
-      ]).returning();
-      const [course] = await db.insert(schema.courses).values({
-        teacherId: tom!.id, title: 'Security basics', materialUrl: 'https://wiki.example.com/security-policy', status: 'active',
-        assessmentPassThreshold: 90, startsAt: clock.now(), endsAt: at('2026-01-16T22:59:00Z'), // Friday 16 January 23:59 Zurich
-      }).returning();
-      const cards = await db.insert(schema.flashcards).values(
-        Array.from({ length: 10 }, (_, i) => ({
-          courseId: course!.id, question: `Q${i + 1}`, options: ['right', 'x', 'y'], correctOption: 0, isAssessment: i < 3, position: i + 1,
-        })),
-      ).returning();
-      await db.insert(schema.enrollments).values([ann!, bea!].map((u) => ({ courseId: course!.id, userId: u.id, status: 'active', enrolledAt: clock.now() })));
-      Object.assign(ids, { tom: tom!.id, ann: ann!.id, bea: bea!.id, course: course!.id, cards: cards.sort((a, b) => a.position - b.position).map((c) => c.id) });
-      assert.equal(cards.filter((c) => c.isAssessment).length, 3);
+      tomToken = await issueTeacherToken(db, { email: 'tom@x.test', fullName: 'Tom' });
+      api = await listen(createApp({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false }));
+      assert.equal((await api.call(null, 'GET', '/courses')).status, 401);
+      assert.equal((await api.call('x'.repeat(43), 'GET', '/courses')).status, 401);
+      const course = await rest('POST', '/courses', { title: 'Security basics', material_url: 'https://wiki.example.com/security-policy', ends_at: '2026-01-16T22:59:00Z' }, 201); // Friday 23:59 Zurich
+      assert.equal(course.status, 'draft');
+      assert.equal(course.assessment_pass_threshold, 90);
+      const added = await rest('POST', `/courses/${course.course_id}/flashcards`, {
+        flashcards: Array.from({ length: 10 }, (_, i) => ({ question: `Q${i + 1}`, options: ['right', 'x', 'y'], correct_option: 0, is_assessment: i < 3 })),
+      }, 201);
+      assert.deepEqual(added.flashcards.map((f: { position: number }) => f.position), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+      const enrolled = await rest('POST', `/courses/${course.course_id}/students`, { students: [{ email: 'ann@x.test', name: 'Ann' }, { email: 'bea@x.test', name: 'Bea' }] });
+      assert.deepEqual(enrolled.students.map((s: { enrolled: boolean; slack_matched: boolean }) => [s.enrolled, s.slack_matched]), [[true, true], [true, true]]);
+      const shown = await rest('GET', `/courses/${course.course_id}`);
+      assert.deepEqual([shown.status, shown.card_count, shown.assessment_card_count, shown.student_count], ['draft', 10, 3, 2]);
+      assert.equal(slack.posted.length, 0);
+      const students = await rest('GET', `/courses/${course.course_id}/students`);
+      const idByEmail = Object.fromEntries(students.students.map((s: { email: string; student_id: string }) => [s.email, s.student_id]));
+      const [tom] = await db.select().from(schema.users).where(eq(schema.users.email, 'tom@x.test'));
+      Object.assign(ids, { tom: tom!.id, ann: idByEmail['ann@x.test'], bea: idByEmail['bea@x.test'], course: course.course_id, cards: added.flashcards.map((f: { flashcard_id: string }) => f.flashcard_id) });
       assert.equal((await enrollmentOf(ids.ann)).status, 'active');
       assert.equal((await enrollmentOf(ids.ann)).assessmentDoneAt, null);
     },
   },
   {
-    name: 'section 1: start_course sends the first assessment card (A1) to Ann and Bea at once',
+    name: 'section 1 (REST): start_course sends the start message and the first assessment card (A1) to Ann and Bea at once; a second start is refused',
     run: async () => {
-      assert.equal(await sendFirstCards(deps, ids.course), 2);
-      assert.equal(slack.posted.length, 2);
+      const started = await rest('POST', `/courses/${ids.course}/start`);
+      assert.equal(started.status, 'active');
+      assert.equal(started.starts_at, '2026-01-05T09:00:00.000Z');
+      assert.equal(slack.posted.length, 4); // the start message, then A1, for each student
+      assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.message.text), [TEXT.started, TEXT.started]);
       for (const u of [ids.ann, ids.bea]) assert.equal((await getOpenCard(db, u, ids.course))?.flashcardId, A(1));
-      assert.match(slack.posted[0]!.message.text, /^Q: Q1\n1\. right/);
-      assert.equal(await sendFirstCards(deps, ids.course), 0); // repeating sends nothing: the cards are open
+      assert.match(slack.posted[2]!.message.text, /^Q: Q1\n1\. right/);
+      const again = await api.call(tomToken, 'POST', `/courses/${ids.course}/start`);
+      assert.deepEqual([again.status, again.body.error.code], [409, 'course_not_draft']);
+      assert.equal(slack.posted.length, 4); // repeating sends nothing: the cards are open
     },
   },
   {
@@ -332,6 +353,24 @@ const steps: Step[] = [
     },
   },
   {
+    name: 'section 4 (REST): progress after Thursday 15 January: Ann learned/total, Bea exempt at 100, class average, per-card list, nobody waiting',
+    run: async () => {
+      const learned = (await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann))).filter((r) => r.learnedAt).length;
+      assert.ok(learned >= 2, `Ann has learned ${learned} cards`); // A1 and card-1 at least
+      const p = await rest('GET', `/courses/${ids.course}/progress`);
+      const byId = Object.fromEntries(p.students.map((s: { student_id: string }) => [s.student_id, s]));
+      assert.deepEqual([byId[ids.ann].status, byId[ids.ann].learned, byId[ids.ann].total, byId[ids.ann].progress, byId[ids.ann].assessment_done, byId[ids.ann].waiting_since], ['active', learned, 10, learned * 10, true, null]);
+      assert.deepEqual([byId[ids.bea].status, byId[ids.bea].progress, byId[ids.bea].assessment_done], ['exempt', 100, true]);
+      assert.equal(p.class_progress, (learned * 10 + 100) / 2);
+      const one = await rest('GET', `/courses/${ids.course}/students/${ids.ann}/progress`);
+      assert.equal(one.cards.length, 10);
+      assert.equal(one.cards.filter((c: { learned: boolean }) => c.learned).length, learned);
+      const card1 = one.cards.find((c: { flashcard_id: string }) => c.flashcard_id === CARD(1));
+      assert.deepEqual([card1.learned, card1.correct_streak, card1.last_answer_correct], [true, 3, true]);
+      console.log(`     (class progress ${p.class_progress}: Ann ${learned} of 10, Bea exempt)`);
+    },
+  },
+  {
     name: 'section 3: Friday 16 January: nothing is due any more',
     run: async () => {
       assert.deepEqual(await tickDay('2026-01-16'), []);
@@ -355,13 +394,51 @@ const steps: Step[] = [
       assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 }); // finished once, nothing left to do
     },
   },
+  {
+    name: 'section 5 and 6 (REST): in a second course Tom removes Dee (open card replaced with "expired", idempotent) and stops the course (Cy completed, 0%, ended message)',
+    run: async () => {
+      slack.directory.set('cy@x.test', { slackId: 'UCY', tz: 'Europe/Zurich' });
+      slack.directory.set('dee@x.test', { slackId: 'UDEE', tz: 'Europe/Zurich' });
+      clock.set(at('2026-01-17T09:00:00Z'));
+      const c = await rest('POST', '/courses', { title: 'Phishing', material_url: 'https://wiki.example.com/phishing', ends_at: '2026-02-01T00:00:00Z' }, 201);
+      await rest('POST', `/courses/${c.course_id}/flashcards`, { flashcards: [{ question: 'P1', options: ['right', 'x'], correct_option: 0, is_assessment: true }, { question: 'P2', options: ['right', 'x'], correct_option: 0, is_assessment: false }] }, 201);
+      await rest('POST', `/courses/${c.course_id}/students`, { students: [{ email: 'cy@x.test', name: 'Cy' }, { email: 'dee@x.test', name: 'Dee' }] });
+      await rest('POST', `/courses/${c.course_id}/start`);
+      const list = (await rest('GET', `/courses/${c.course_id}/students`)).students as { student_id: string; email: string }[];
+      const cy = list.find((s) => s.email === 'cy@x.test')!.student_id;
+      const dee = list.find((s) => s.email === 'dee@x.test')!.student_id;
+      const deeCard = await getOpenCard(db, dee, c.course_id);
+      assert.ok(deeCard?.messageTs);
+
+      await rest('DELETE', `/courses/${c.course_id}/students/${dee}`, undefined, 204);
+      assert.equal(slack.replaced.at(-1)?.message.text, TEXT.removed);
+      assert.equal(slack.replaced.at(-1)?.ts, deeCard.messageTs);
+      assert.equal(await getOpenCard(db, dee, c.course_id), null);
+      const replaced = slack.replaced.length;
+      await rest('DELETE', `/courses/${c.course_id}/students/${dee}`, undefined, 204);
+      assert.equal(slack.replaced.length, replaced);
+      assert.equal((await rest('GET', `/courses/${c.course_id}`)).student_count, 1);
+      assert.deepEqual((await rest('GET', `/courses/${c.course_id}/progress`)).students.map((s: { student_id: string }) => s.student_id), [cy]);
+
+      const cyCard = await getOpenCard(db, cy, c.course_id);
+      const posts = slack.posted.length;
+      const stopped = await rest('POST', `/courses/${c.course_id}/stop`);
+      assert.equal(stopped.status, 'finished');
+      const after = (await rest('GET', `/courses/${c.course_id}/students`)).students;
+      assert.deepEqual(after.map((s: { status: string }) => s.status), ['completed']);
+      assert.equal((await enrollmentOf(cy)).completedProgress, 0);
+      assert.equal(slack.posted.length, posts + 1);
+      assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended(0));
+      assert.equal(slack.replaced.at(-1)?.ts, cyCard?.messageTs); // Cy's open card is closed
+      const twice = await api.call(tomToken, 'POST', `/courses/${c.course_id}/stop`);
+      assert.deepEqual([twice.status, twice.body.error.code], [409, 'course_not_active']);
+    },
+  },
 ];
 
 // Walkthrough sections that need later tasks (docs/scenario.md). Listed, not run.
 const pending = [
-  '1 teacher sets up (create_course, add_flashcards, enroll_students, start_course): Tasks 7, 9',
-  '4 progress: Task 7',
-  '5 stop_course: Task 7',
+  '1, 4, 5 through the MCP tools instead of REST: Task 9',
   '6 edge cases (reminders, removal and cleanup; stale-claim recovery runs above; the second click is checked above): Task 6b-2',
 ];
 
@@ -372,9 +449,10 @@ for (const [i, step] of steps.entries()) {
   } catch (err) {
     console.error(`FAIL ${i + 1} ${step.name}: ${err instanceof Error ? err.message : String(err)}`);
     console.error(`${i} ok, failed at step ${i + 1} of ${steps.length}, ${pending.length} pending not run`);
-    process.exit(1);
+    process.exit(1); // the open server dies with the process
   }
 }
 for (const p of pending) console.log(`pending ${p}`);
 console.log(`${steps.length} ok, ${pending.length} pending`);
+await api.close();
 await pool.end();

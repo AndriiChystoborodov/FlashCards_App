@@ -93,7 +93,7 @@ Outcome messages:
 
 ## Course notifications
 
-`POST /courses/:id/start` and `/stop` send a DM to every enrolled student with `slack_id`: start message, first assessment card follows. Sent sequentially.
+`POST /courses/:id/start` sends a DM to every present `active` student with a `slack_id`, then the first assessment card. `POST /courses/:id/stop` sends the "course has ended" DM to every `active` enrollment it completes; `exempt` and removed students get nothing ([decision 0028](../decisions/0028-task7-rest-api-choices.md)). Sent sequentially.
 
 ## Retries and rate limits
 

@@ -1,6 +1,6 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import type { DbOrTx } from './client.js';
-import { courses, enrollments } from './schema.js';
+import { cardStates, courses, enrollments, flashcards, reviews, users } from './schema.js';
 
 /** The one predicate for a present student (data-model.md "Derived values"); every enrollment query uses it. */
 export const presentEnrollment = isNull(enrollments.removedAt);
@@ -53,3 +53,44 @@ export const listTickTargets = (db: DbOrTx, courseIds?: string[]) =>
     .from(enrollments)
     .innerJoin(courses, eq(courses.id, enrollments.courseId))
     .where(and(eq(courses.status, 'active'), eq(enrollments.status, 'active'), presentEnrollment, courseIds ? inArray(enrollments.courseId, courseIds) : undefined));
+
+export type EnrollmentRow = typeof enrollments.$inferSelect;
+
+export const insertEnrollment = async (db: DbOrTx, courseId: string, userId: string, now: Date): Promise<boolean> =>
+  (await db.insert(enrollments).values({ courseId, userId, status: 'active', enrolledAt: now }).onConflictDoNothing().returning({ u: enrollments.userId })).length > 0;
+
+/** Clears `removed_at` (decision 0017); everything else is kept. */
+export async function restoreEnrollment(db: DbOrTx, courseId: string, userId: string): Promise<boolean> {
+  const rows = await db
+    .update(enrollments)
+    .set({ removedAt: null })
+    .where(and(eq(enrollments.courseId, courseId), eq(enrollments.userId, userId), isNotNull(enrollments.removedAt)))
+    .returning({ u: enrollments.userId });
+  return rows.length > 0; // false when a parallel call restored it first
+}
+
+/** Returns false when the enrollment was already removed (the call is idempotent, `removed_at` does not move). */
+export async function softRemoveEnrollment(db: DbOrTx, courseId: string, userId: string, now: Date): Promise<boolean> {
+  const rows = await db
+    .update(enrollments)
+    .set({ removedAt: now })
+    .where(and(eq(enrollments.courseId, courseId), eq(enrollments.userId, userId), presentEnrollment))
+    .returning({ u: enrollments.userId });
+  return rows.length > 0;
+}
+
+/** The retention cleanup (decision 0017) for one student of one course; Task 6b-2's daily job reuses it. */
+export async function hardDeleteEnrollment(db: DbOrTx, courseId: string, userId: string): Promise<void> {
+  const cardIds = db.select({ id: flashcards.id }).from(flashcards).where(eq(flashcards.courseId, courseId));
+  await db.delete(reviews).where(and(eq(reviews.userId, userId), inArray(reviews.flashcardId, cardIds)));
+  await db.delete(cardStates).where(and(eq(cardStates.userId, userId), inArray(cardStates.flashcardId, cardIds)));
+  await db.delete(enrollments).where(and(eq(enrollments.courseId, courseId), eq(enrollments.userId, userId)));
+}
+
+export const listStudents = (db: DbOrTx, courseId: string) =>
+  db
+    .select({ enrollment: enrollments, user: users })
+    .from(enrollments)
+    .innerJoin(users, eq(users.id, enrollments.userId))
+    .where(and(eq(enrollments.courseId, courseId), presentEnrollment))
+    .orderBy(asc(enrollments.enrolledAt), asc(users.email));
