@@ -60,3 +60,19 @@ Accepted and written down:
 - `STUDENT_ROUTES_ENABLED=true` is refused only with `NODE_ENV=production`; a deployment that forgets `NODE_ENV` would serve the open student routes (decision 0018 stays as decided).
 - `scheduled_start_at` and a past `ends_at` on a draft are stored as given; only `start` checks `ends_at`. Whitespace-only questions, duplicate options and URLs with credentials are accepted.
 - `slack_matched` tells a teacher whether an email has a Slack account; that is the feature.
+
+## Amendment: student routes only on a loopback host
+
+Source: the user, relayed by the session that started the build, 2026-10-26. This adds to choice 19 and to the "Not done" note about `NODE_ENV`; the text above is left as it was written.
+
+The two unauthenticated student routes exist only when the server binds to a loopback host, regardless of `NODE_ENV` and `STUDENT_ROUTES_ENABLED`. The production check in `src/config/env.ts` is unchanged.
+
+| # | choice | why |
+| --- | --- | --- |
+| A1 | `ApiDeps.bindHost` is required. `createApp` calls `assertStudentRoutesAllowed(studentRoutesEnabled, bindHost)` before it mounts anything, and is the only code that mounts `studentRouter` (a test greps `src/api` for it). A flag on with a non-loopback host throws at startup | one place; Task 8 cannot forget it because `createApp` will not build without a host |
+| A2 | `startServer(deps, port)` in `src/api/server.ts` builds the app and listens on `deps.bindHost`; the tests (`listen` in `testClient.ts`), the scenario and `npm run api` all use it, and Task 8's `src/index.ts` must too | the host that was checked is the host that is bound |
+| A3 | `isLoopbackHost` is an exact match after lower-casing: `localhost`, `localhost.`, `127.0.0.1`, `::1`, `[::1]`. Not loopback: `127.0.0.2` and other 127 addresses, `::ffff:127.0.0.1`, `0.0.0.0`, `::`, `''`, `localhost.evil.com`, `localhost..`, `127.0.0.1.`, hosts with spaces, NUL, a port or `@`, `[localhost]`, `[127.0.0.1]`, `127.1`, `2130706433` | no prefix, range or DNS logic to get wrong; unusual forms are refused, the cost is a clear startup message |
+| A4 | With the flag off there is no host check (the routes are absent whatever the host); only the flag-on case can fail | the teacher routes are authenticated and may be exposed |
+| A5 | The error message names the variable and the host as JSON text, and prints `<unprintable>` when the host has characters outside letters, digits and `.:[]_-` | never echo credentials or odd input |
+| A6 | `npm run api` binds `127.0.0.1` only (fixed in `scripts/dev-api.ts`); there is no `HOST` variable yet. Task 8 chooses how the real server gets its host | nothing needs it now |
+| A7 | Review round: `bindHost` is only a declaration, so `startServer` also reads the address the socket really got (`server.address()`) when the student routes are on, and closes the socket and fails unless it is `::1` or 127.x.x.x (`localhost` is resolved by the OS, and a caller of `createApp` could listen elsewhere, which is why Task 8 must use `startServer`). `[::1]` is stripped to `::1` before `listen`. The two check functions moved to `src/api/loopback.ts` (no import cycle between `app.ts` and `server.ts`) | the check should hold for the real socket, not only for the string |

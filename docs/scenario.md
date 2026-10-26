@@ -18,7 +18,7 @@ npm run scenario
 | --- | --- |
 | `src/clock.ts` | `Clock { now(): Date }`, `systemClock`, `createControlledClock` (`set`, `advanceDays`). Services, the scheduler and the tick read time only from a `Clock` ([scheduler.md](scheduler.md#clock)) |
 | `src/db/reset.ts` | `npm run db:reset`: creates `retain_dev` if missing, drops `public` and `drizzle`, applies `drizzle/` migrations. Refuses unless host is `localhost`/`127.0.0.1`, the URL has no query parameters, and the database is exactly `retain_dev` or `retain_reset_test` (the reset test's own throwaway database, created and dropped by the test) |
-| `src/api/testClient.ts` | `listen(app)` on `127.0.0.1:0` and `call(token, method, path, body)` over `fetch`; used by the REST tests and the scenario |
+| `src/api/testClient.ts` | `listen(deps)` (= `startServer` with `bindHost` `127.0.0.1`, port 0) and `call(token, method, path, body)` over `fetch`; used by the REST tests and the scenario |
 | `scripts/scenario.ts` | `npm run scenario`: steps run in order, `ok N name` or `FAIL N name: message` (exit 1 on the first failure, plus a line saying how many steps passed), then the pending list and a final `N ok, M pending` line |
 
 ## Steps now

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { getTableName, is } from 'drizzle-orm';
 import { PgTable } from 'drizzle-orm/pg-core';
 import { eq } from 'drizzle-orm';
-import { createApp } from '../src/api/app.js';
 import { listen, type Api } from '../src/api/testClient.js';
 import { createControlledClock } from '../src/clock.js';
 import { env } from '../src/config/env.js';
@@ -126,7 +125,7 @@ const steps: Step[] = [
     name: 'section 1 (REST): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing',
     run: async () => {
       tomToken = await issueTeacherToken(db, { email: 'tom@x.test', fullName: 'Tom' });
-      api = await listen(createApp({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false }));
+      api = await listen({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false, bindHost: '127.0.0.1' });
       assert.equal((await api.call(null, 'GET', '/courses')).status, 401);
       assert.equal((await api.call('x'.repeat(43), 'GET', '/courses')).status, 401);
       const course = await rest('POST', '/courses', { title: 'Security basics', material_url: 'https://wiki.example.com/security-policy', ends_at: '2026-01-16T22:59:00Z' }, 201); // Friday 23:59 Zurich

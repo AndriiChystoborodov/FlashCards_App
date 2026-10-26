@@ -12,6 +12,10 @@ Until student authentication exists, the two routes are mounted only when `STUDE
 
 It closes an unauthenticated write path in production without removing the routes that tests and local scripts use. The route and the Slack handlers share one review service, so tests of the route also cover the answer logic.
 
+## Amendment (decision 0028, 2026-10-26)
+
+The routes are also mounted only when the server binds to a loopback host; see [0028](0028-task7-rest-api-choices.md#amendment-student-routes-only-on-a-loopback-host). The text above is left as it was written.
+
 ## Consequences
 
 - Add `STUDENT_ROUTES_ENABLED` to `.env.example` and the env validation in Task 1.

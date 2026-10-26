@@ -68,7 +68,7 @@ A student added to an `active` course gets the first assessment card at once, no
 
 ## Student answers
 
-> Disabled by default ([decision 0018](decisions/0018-student-routes-dev-only.md)). Both routes below have no authentication, so they are mounted only when `STUDENT_ROUTES_ENABLED=true`, and the server refuses to start with that flag in production (`NODE_ENV=production`). Until student auth exists they are for development and tests; students answer through Slack.
+> Disabled by default ([decision 0018](decisions/0018-student-routes-dev-only.md)). Both routes below have no authentication, so they are mounted only when `STUDENT_ROUTES_ENABLED=true`, and the server refuses to start with that flag in production (`NODE_ENV=production`). They are also mounted **only when the server binds to a loopback host** (`localhost`, `127.0.0.1`, `::1`), whatever `NODE_ENV` says: `createApp` takes the bind host (`bindHost`, required) and checks it in one place (`assertStudentRoutesAllowed` in `src/api/loopback.ts`); `startServer` (`src/api/server.ts`) listens on that same host and, with the flag on, verifies the address the socket really got. `STUDENT_ROUTES_ENABLED=true` with any other host (`0.0.0.0`, `::`, a LAN name) fails at startup with a message naming the variable and the host ([decision 0028](decisions/0028-task7-rest-api-choices.md#amendment-student-routes-only-on-a-loopback-host)). Until student auth exists they are for development and tests; students answer through Slack.
 
 `POST /users/:userId/flashcards/:flashcardId/reviews`
 

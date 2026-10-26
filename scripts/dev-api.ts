@@ -1,6 +1,6 @@
 import { systemClock } from '../src/clock.js';
 import { env } from '../src/config/env.js';
-import { createApp } from '../src/api/app.js';
+import { startServer } from '../src/api/server.js';
 import { createDb } from '../src/db/client.js';
 import type { CardMessage } from '../src/slack/card.js';
 import type { SlackPort } from '../src/slack/port.js';
@@ -26,9 +26,13 @@ const consoleSlack: SlackPort = {
 };
 
 const { db } = createDb(env.DATABASE_URL);
-const app = createApp({
-  db, clock: systemClock, tenantTimezone: env.TENANT_TIMEZONE, slack: consoleSlack,
-  removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: env.STUDENT_ROUTES_ENABLED,
-});
 const port = Number(process.env.PORT ?? 3000);
-app.listen(port, '127.0.0.1', () => console.log(`Retain API on http://127.0.0.1:${port}`));
+// startServer refuses STUDENT_ROUTES_ENABLED=true for a non-loopback host; here the host is fixed to loopback.
+const server = await startServer(
+  {
+    db, clock: systemClock, tenantTimezone: env.TENANT_TIMEZONE, slack: consoleSlack,
+    removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: env.STUDENT_ROUTES_ENABLED, bindHost: '127.0.0.1',
+  },
+  port,
+);
+console.log(`Retain API on http://${server.host}:${server.port}`);

@@ -199,7 +199,7 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | R16 | the same call again | 204, `removed_at` unchanged |
 | R17 | re-enroll within 14 days | `removed_at` cleared, progress and `card_states` intact, `restored: true` |
 | R18 | re-enroll after the cleanup | new enrollment, assessment first, no old reviews. **Simulated until 6b-2**: the daily cleanup job is not built, so the test advances the clock 15 days and the enroll route runs the same `hardDeleteEnrollment` the job will reuse; the job itself (S43, S44, S47) is 6b-2 |
-| R19 | student routes with `STUDENT_ROUTES_ENABLED` unset or false | 404 |
+| R19 | student routes with `STUDENT_ROUTES_ENABLED` unset or false | 404, for every bind host. With the flag on they exist only for a loopback bind host: `src/api/server.test.ts` runs a table of host forms (`127.0.0.1`, `::1`, `[::1]`, `localhost` in any case, `localhost.` are loopback; `0.0.0.0`, `''`, `::`, `::ffff:127.0.0.1`, `localhost.evil.com`, `127.0.0.2`, ... are not) and checks that a non-loopback host fails at startup |
 | R20 | env validation: `STUDENT_ROUTES_ENABLED=true` with `NODE_ENV=production` | startup fails with a clear message |
 | R21 | PATCH `is_assessment` on an `active` course | 409 `course_not_draft` |
 | R22 | progress endpoints with an open card and with none | `waiting_since` is the card's `sent_at`, or null |

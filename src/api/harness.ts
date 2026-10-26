@@ -3,7 +3,6 @@ import { createControlledClock } from '../clock.js';
 import { db } from '../db/testDb.js';
 import { issueTeacherToken } from '../services/auth.js';
 import { FakeSlack } from '../slack/fake.js';
-import { createApp } from './app.js';
 import { listen } from './testClient.js';
 
 /** Test helper: the app on a random 127.0.0.1 port over the test database, a controlled clock and a FakeSlack. Ids and emails are random, so test files can share the database. */
@@ -11,7 +10,7 @@ export async function harness(opts: { studentRoutes?: boolean } = {}) {
   const clock = createControlledClock(new Date('2026-01-05T09:00:00Z')); // Monday 10:00 Zurich
   const slack = new FakeSlack();
   const deps = { db, clock, tenantTimezone: 'Europe/Zurich', slack };
-  const api = await listen(createApp({ ...deps, removedRetentionDays: 14, studentRoutesEnabled: opts.studentRoutes ?? false }));
+  const api = await listen({ ...deps, removedRetentionDays: 14, studentRoutesEnabled: opts.studentRoutes ?? false, bindHost: '127.0.0.1' });
   const tag = randomUUID().slice(0, 8);
   let n = 0;
   const email = (who: string) => `${who}-${tag}-${(n += 1)}@x.test`;
