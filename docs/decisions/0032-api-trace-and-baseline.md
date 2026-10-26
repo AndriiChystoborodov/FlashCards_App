@@ -44,6 +44,18 @@ Real: the REST app (Express, zod, services) over real HTTP on `127.0.0.1`, the s
 | 9 | Table counts are read for every table before and after each step; step 1 starts from zero | the reset step drops the tables, so its delta must not depend on the old database |
 | 10 | `SCENARIO_TRACE=off` runs the scenario without any recorder and writes only the step deltas | the parity check |
 
+## What is normalized in the baseline, and the order it still guarantees
+
+`seq` is a real counter in `reports/trace.json` (`recorder.ts` takes the next number when a call starts). `toBaseline` in `src/trace/compare.ts` sets it to 0 on purpose: an inserted or removed call would otherwise renumber every later event and every line would differ. The baseline keeps the order as the **array order within a step**, which is the order the calls started (reserved when they begin, so a request is listed before the Slack calls it causes). Compare pairs events by array order (longest common subsequence of their signatures) and ignores `seq`; the viewer also draws in array order. The same normalization turns REST bodies into shapes and leaves `t` (the controlled clock) as recorded.
+
+## Rule: synthetic data only
+
+The trace and the baseline are built only from the scenario's synthetic data. `reports/` stays git-ignored, `docs/baseline/trace.json` is committed only after the scan passes, and real student data must never be traced. The future live stream (Part 2) follows the same rule: dev-only, loopback, no payload bodies, the same redactor.
+
+## Redaction limits
+
+Redaction is pattern based, so it does not catch: an unregistered secret under an ordinary key name; a letters-only token shorter than 32 characters (longer ones and mixed letter-digit tokens from 20 are caught); look-alike (homoglyph) characters; emails written like `bob (at) corp.example`; names inside free text. It over-redacts long slugs (20 or more characters with a letter and a digit, for example `security-basics-2026-intro-module1`) to `[token]`, which only adds noise to a diff. The docker database password `retain` is too short and common to register on its own (it would rewrite the word everywhere), so it is covered only as part of the registered database URL.
+
 ## Not covered
 
-Redaction is pattern based. It cannot know a secret that has no pattern, is not registered and sits in a value under an ordinary key name; look-alike (homoglyph) characters and names inside free text are not detected. A bare token of letters only is not caught (the scenario registers its bad token, so it is replaced). The live stream (Part 2) is not built.
+The live stream (Part 2) is not built.

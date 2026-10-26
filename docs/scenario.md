@@ -42,6 +42,8 @@ The final line of a good run is `23 ok, 1 pending`. What is recorded, how ids, e
 | `scripts/trace-report.ts`, `trace-compare.ts`, `scenario-parity.ts` | the commands. Compare exits 0 (no differences), 1 (differences), 2 (a file is missing or unusable) |
 | `docs/baseline/trace.json` | the committed baseline (aliases only) |
 
+The trace and the baseline are built only from the scenario's synthetic data; `reports/` is git-ignored and real student data must never be traced (the same holds for the future live stream).
+
 In the page, the Slack handlers and the tick call the services directly, not REST; the two student routes are shown as disabled in the scenario by design (`studentRoutesEnabled: false`). Tests: `src/trace/*.test.ts` (T-RED, T-REC, T-LEAK, T-RENDER, T-CAT, T-CMP).
 
 ## Parts

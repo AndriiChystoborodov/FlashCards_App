@@ -174,7 +174,8 @@ code,pre{font-family:Menlo,Consolas,monospace;font-size:16px}pre{background:#f2f
 .list details{margin:4px 0 4px 8px}.list summary{cursor:pointer;font-size:17px}.body{padding:4px 14px}a{color:#000}
 </style></head><body>
 <h1>Retain API trace</h1>
-<p>Recorded while <code>npm run scenario</code> ran. ${trace.steps.length} steps. Every id, email, name, Slack id and token is replaced by a stable alias (<code>student-1</code>, <code>U-1</code>, <code>course-1</code>). Full requests and responses are under each arrow.</p>
+<p>Recorded while <code>npm run scenario</code> ran. ${trace.steps.length} steps. Every id, email, name, Slack id and token is replaced by a stable alias (<code>student-1</code>, <code>U-1</code>, <code>course-1</code>). Full requests and responses are under each arrow. Events are shown in the order they were recorded (array order within a step); <code>seq</code> only numbers them in <code>reports/trace.json</code> and is zeroed in the committed baseline, which <code>npm run scenario:compare</code> compares by array order.</p>
+<p class="note"><b>Synthetic data only.</b> This trace and the baseline are built from the scenario's made-up students; real student data must never be traced. <code>reports/</code> is git-ignored.</p>
 <h2>Legend</h2>
 <table><tr><th>Mark</th><th>Meaning</th></tr>
 <tr><td>solid arrow</td><td>a recorded call</td></tr>
