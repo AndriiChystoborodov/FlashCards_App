@@ -35,6 +35,7 @@ Start with **[docs/implementation-plan.md](docs/implementation-plan.md)**: the i
 | [Slack integration](docs/slack/integration.md) | messages, buttons, handlers ([app setup](docs/slack/README.md)) |
 | [MCP for teachers](docs/mcp-teacher-api.md)    | the teacher's tools                                             |
 | [Walkthrough](docs/walkthrough.md)             | one course from start to finish, with real numbers              |
+| [How it works](docs/how-it-works.md)           | one page with diagrams: components, a course, a card's life     |
 | [Test plan](docs/test-plan.md)                 | test cases per part                                             |
 | [Decisions](docs/decisions/)                   | architecture decision records                                   |
 

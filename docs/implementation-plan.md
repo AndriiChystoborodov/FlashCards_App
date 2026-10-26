@@ -6,6 +6,7 @@ Design phase output, 2026-10-24. Tasks 1 to 5, 6a, 6b-1, 7 and 8a are built ([00
 
 | part | doc |
 | --- | --- |
+| One-page overview with diagrams (for a walkthrough) | [how-it-works.md](how-it-works.md) |
 | Data model | [data-model.md](data-model.md) |
 | REST API | [rest-api.md](rest-api.md) |
 | FSRS and calculator | [fsrs-calculator.md](fsrs-calculator.md) |
