@@ -27,7 +27,12 @@ Source: the user approved the Task 8a plan on 2026-10-26 with the proposed texts
 
 ## What ran against what
 
-Everything in 8a ran against the fake or a stub: `FakeSlack`, a stub Web client, real local Postgres. **Nothing ran against the real Slack API** until the user's live run ([live-run.md](../slack/live-run.md)).
+Everything in 8a was built and tested against the fake or a stub: `FakeSlack`, a stub Web client, real local Postgres.
+
+**First live run (reported by the user, 2026-10-26; details in [live-run.md](../slack/live-run.md)).** Three assessment cards answered right + Easy, the student was exempt and received the "already know this material" message. Real Slack delivered the course start DM, the cards, the message replacement and the final DM within about a minute.
+- **Verified against real Slack:** choice 1 (`chat.postMessage` for the DMs and cards, `chat.update` for the replacements), the right-answer and rating path, the exempt outcome and its DM; `users.lookupByEmail` by implication (the DM reached the matched user).
+- **Still unverified against real Slack:** wrong answer and "Don't know", a double click and the "already answered" text, the 3-second ack, 10-option rendering, outage and 429 behaviour with choice 5's retry and timeout settings, `block_actions` retries, the tick (next-day cards, stale-claim recovery) and the stop DM, the time zone from `lookupByEmail`, an unknown email.
+- A second run was mentioned by the user but its result was not reported; nothing from it is recorded.
 
 ## Independent review (subagent, before the commit)
 

@@ -1,6 +1,27 @@
 # Live run (Task 8a): what you do by hand
 
-Everything below needs your real Slack workspace. Until you have done it, **nothing of Task 8a has run against the real Slack API**: the adapter (`src/slack/web.ts`), the Bolt wiring (`src/slack/start.ts`) and `src/index.ts` are tested only with a stub client and `FakeSlack`.
+Everything below needs your real Slack workspace. The first live run was done by the user and reported on 2026-10-26 (results below). Only what that run showed is verified against real Slack; the rest of the adapter (`src/slack/web.ts`), the Bolt wiring (`src/slack/start.ts`) and `src/index.ts` is still tested only with a stub client and `FakeSlack`.
+
+## Live run results (reported by the user, 2026-10-26)
+
+**First run.** The user answered the three assessment cards right + Easy. The student was exempt and got the "already know this material" message. Real Slack delivered the course start DM, the cards, the message replacement and the final DM, all within about a minute.
+
+**Verified live by the first run:**
+- `postCard` (course start DM and the cards), `replaceMessage` (the clicked cards were replaced), and the exempt DM reached the user in real Slack.
+- The click path from a button to the answer service worked for right + Easy, and an assessment pass with 3 of 3 passed made the student exempt (score 100).
+- The whole sequence ran within about a minute. This is not a measurement of the 3-second ack.
+- Implied by the run (a DM reached the matched user): `users.lookupByEmail` found the email. Its time zone value was not inspected.
+
+**Second run.** Not reported yet. Nothing from it is recorded here.
+
+**Still unverified against real Slack:**
+- Wrong answer and "Don't know" paths, including the material link text.
+- A double click and the "This card was already answered." reply.
+- The 3-second ack timing on a real connection, and button rendering with 10 options.
+- A Slack outage or a 429 (retry 5 times in 5 minutes, timeout 15 s in `src/slack/start.ts`).
+- Whether Slack retries a `block_actions` click.
+- The tick against real Slack: next-day cards, stale-claim recovery and the stop DM. The exempt student gets no further cards, so the tick sent nothing to test.
+- `users.lookupByEmail` time zone, and a student whose email Slack does not know.
 
 ## Before the first run
 
