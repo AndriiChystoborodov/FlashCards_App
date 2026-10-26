@@ -2,7 +2,7 @@
 // student's local day, and the answer service clamps `due` to the day before `ends_at`.
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
-function localParts(tz: string, ms: number): { year: number; month: number; day: number; offsetMs: number } {
+function localParts(tz: string, ms: number): { year: number; month: number; day: number; hour: number; offsetMs: number } {
   let f = formatters.get(tz);
   if (!f) {
     f = new Intl.DateTimeFormat('en-CA', {
@@ -13,7 +13,7 @@ function localParts(tz: string, ms: number): { year: number; month: number; day:
   }
   const p = Object.fromEntries(f.formatToParts(new Date(ms)).map((x) => [x.type, Number(x.value)]));
   const wallAsUtc = Date.UTC(p.year!, p.month! - 1, p.day!, p.hour!, p.minute!, p.second!);
-  return { year: p.year!, month: p.month!, day: p.day!, offsetMs: wallAsUtc - Math.floor(ms / 1000) * 1000 };
+  return { year: p.year!, month: p.month!, day: p.day!, hour: p.hour!, offsetMs: wallAsUtc - Math.floor(ms / 1000) * 1000 };
 }
 
 // shortcut: in a zone whose DST gap covers local midnight (America/Sao_Paulo before 2019) the day start is 1 h early; fix if such a zone is ever used.
@@ -57,3 +57,6 @@ export function localDaysThrough(tz: string, from: Date, to: Date): number {
   const days = Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000) + 1;
   return Math.max(1, days);
 }
+
+/** The hour (0 to 23) on the wall clock of `tz` at `date`; the tick compares it with `SEND_HOUR`. */
+export const localHour = (tz: string, date: Date): number => localParts(tz, date.getTime()).hour;

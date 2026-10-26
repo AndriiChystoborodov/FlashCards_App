@@ -132,6 +132,21 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | S23 | `due` just after local midnight in another timezone | selected on the right local day |
 | S20 | progress and class progress | learned / total, averages, exempt = 100 |
 
+### Tick (Task 6b-1)
+
+`src/services/tick.test.ts` (test database, `FakeSlack`; passes are limited to the test's own course with `courseIds` so they do not touch other tests' courses) and `localHour` cases in `src/domain/localDay.test.ts`:
+
+| case | expected |
+| --- | --- |
+| S19 | 08:59 Zurich sends nothing, 09:00 sends; Auckland and a null `tz` (tenant timezone) use their own hour; a repeated tick sends nothing new |
+| DST days | 2026-03-29 (23 h) and 2026-10-25 (25 h): `SEND_HOUR` is local, a card due at 23:30 local is due today, one due at 00:30 tomorrow is not |
+| no Slack id, removed, exempt, completed, draft course | nothing sent, no card claimed (S39 tick part) |
+| failure isolation | one student's post fails, the other still gets the card, the summary counts both |
+| S12 | claim younger than 10 minutes left alone; at 10 minutes re-posted once, same `sent_at`, one `card_states` row; not gated by `SEND_HOUR`; a card with a recorded message is never re-posted |
+| `ends_at` | the tick finishes the course and completes the enrollment once |
+| `startTick`, real 20 ms interval | overlapping intervals are skipped while a pass waits for Slack (counts only), the next pass runs after it, `stop()` ends the runs |
+| `localHour` | Zurich both DST days, Asia/Kolkata (+5:30), America/New_York 2026-03-08 and 2026-11-01, midnight is 0 |
+
 ### Scheduler core (Task 6a)
 
 `src/services/scheduler.test.ts` (test database, `FakeSlack`), `src/domain/quota.test.ts` (S24 to S27) and the new cases in `src/domain/localDay.test.ts`. Besides the S ids above:
@@ -239,8 +254,8 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 4 Schema and repositories | D1 to D12 |
 | 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52; for S3, S10 and S34 only the service part (below) |
 | 6a Scheduler core | S1, S3 and S4 (rest), S5 to S11, S15 to S17, S21 to S30 (S28: `finishEndedCourses` called directly), S34 (rest), S36, S38, S39 (course part), S42, S46, S53; first cards at start and enrollment; the S51 regression (answered on the last review day, not selected again); the S11 race on real Postgres |
-| 6b-1 Daily tick | S19; the tick calls `finishEndedCourses` at `ends_at`; a repeated tick sends nothing new; S39 (tick part) |
-| 6b-2 Reminders, recovery, cleanup | S12, S18, S32, S33, S35, S43, S44, S47, S48, S39 (no reminder for a removed student); reviews and re-enrollment ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
+| 6b-1 Daily tick | S19, S12; the tick completes the course at `ends_at`; a repeated tick sends nothing new; S39 (tick part); both Zurich DST days (2026-03-29, 2026-10-25); a student without a Slack id; failure isolation; `startTick` overlap and `stop()` (one real 20 ms interval); `localHour` for Zurich, Kolkata and New York |
+| 6b-2 Reminders, cleanup | S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
 | 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40, S45 (class progress needs the progress endpoint) |
 | 8 Slack wiring | H1 to H9; also H10 |
 | 9 MCP | M1 to M4 |

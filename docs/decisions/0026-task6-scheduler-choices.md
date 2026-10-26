@@ -42,6 +42,8 @@ Source: the user approved the Task 6 plan (part 6a) and its answers, relayed by 
 
 6a: S1, S3 and S4 (rest), S5 to S11, S15 to S17, S21 to S30, S34 (rest), S36, S38, S39 (course part: a removed enrollment is not completed), S42, S46, S53, plus first cards, the S51 regression and the lock race. 6b-1: S19, the tick calls `finishEndedCourses`, a repeated tick sends nothing new, S39 (tick part). 6b-2: S12, S18, S32, S33, S35, S43, S44, S47, S48, and the re-enrollment tests of decision 3. Task 7: S45 with S20. Rationale per case: S42 and S46 are `next()` selection; S12 is recovery driven by the tick; S47 is the cleanup marker.
 
+Amendment ([0027](0027-task6b1-tick-choices.md)): S12 (stale-claim recovery) moved from 6b-2 to 6b-1; 6b-2 keeps the reminders and the cleanup.
+
 ## Hooks 6a leaves for 6b
 
 - `sendNext` is the only place that claims and posts; 6b-2 adds a recovery path that re-posts a row with `sent_at` older than 10 minutes and no `message_ts` (the failure test shows the state).

@@ -92,16 +92,18 @@ At `ends_at` or on stop, open cards are closed with the enrollment ([completion]
 
 ## Tick
 
-`setInterval` every 15 minutes in the API process.
+Built in Task 6b-1 ([decision 0027](decisions/0027-task6b1-tick-choices.md)): `runTick(deps, cfg)` and `startTick(deps, cfg)` in `src/services/tick.ts`. `startTick` runs `runTick` every `TICK_MINUTES` (default 15) with `setInterval`; the first pass is one interval after the start. A pass that is still running when the next interval fires makes that interval skip, so passes never overlap. Until Task 8 `src/index.ts` does not start it (there is no real Slack adapter); the end-to-end scenario calls `runTick` with the controllable clock and the `FakeSlack`.
 
-Once per day (the first tick after local midnight of `TENANT_TIMEZONE`, tracked in memory and safe to repeat) the tick also runs the removed-students cleanup described above: hard-delete after `REMOVED_RETENTION_DAYS`.
+Once per day (the first tick after local midnight of `TENANT_TIMEZONE`, tracked in memory and safe to repeat) the tick will also run the removed-students cleanup described above: hard-delete after `REMOVED_RETENTION_DAYS`. Not built yet (Task 6b-2), like the reminders.
 
-On every tick, for each present (`removed_at is null`) active enrollment of an `active` course with no open card:
+One `runTick` pass, with the time read once from the clock:
 
-1. Compute the local date and hour from `users.tz` (fallback `TENANT_TIMEZONE`) using `Intl.DateTimeFormat`.
-2. If local hour is at least `SEND_HOUR` (default 9), run `next()` and send. There is no "already sent today" check: no column records it (`sent_at` is cleared on answer), and none is needed, because `next()` returns none once the day's due cards are done and the quota is used up, so repeating it every 15 minutes sends nothing new.
+1. `finishEndedCourses`: every `active` course whose `ends_at` has passed is finished and its `active` enrollments completed.
+2. For each present (`removed_at is null`) `active` enrollment of an `active` course, one student after another; an error is logged and counted and the pass goes on:
+   - **Open card** (`sent_at` set): if it has no `message_ts` and `sent_at` is at least 10 minutes old (the claim was made and the post never recorded), post the same card again and record the message; `sent_at` does not change. This is not gated by `SEND_HOUR`: the send was already started. Any other open card is left alone.
+   - **No open card:** compute the student's local hour from `users.tz` (fallback `TENANT_TIMEZONE`, invalid values warn and fall back) using `Intl.DateTimeFormat`. If it is at least `SEND_HOUR` (default 9), run `sendNext`. There is no "already sent today" check: no column records it (`sent_at` is cleared on answer), and none is needed, because `next()` returns none once the day's due cards are done and the quota is used up, so repeating it every 15 minutes sends nothing new.
 
-If every student shares a timezone, one daily tick is enough; the per-student version costs only the tz lookup.
+A student without a Slack id is skipped by `sendNext` before any card is claimed. If every student shares a timezone, one daily tick is enough; the per-student version costs only the tz lookup. With a 15-minute tick a stale claim is re-posted 10 to 25 minutes after it was made.
 
 ## Idempotent send
 
@@ -120,8 +122,8 @@ sequenceDiagram
   end
 ```
 
-- Crash after the claim and before Slack: a row has `sent_at` older than 10 minutes and no `message_ts`. The tick re-sends it. A rare duplicate DM is acceptable because answers are idempotent (`reviews` unique on `delivery_sent_at`).
-- The claim is a single `UPDATE ... WHERE sent_at IS NULL` so two ticks cannot both win. With more than one instance, use `FOR UPDATE SKIP LOCKED`.
+- Crash after the claim and before Slack: a row has `sent_at` older than 10 minutes and no `message_ts`. The tick re-posts it (Task 6b-1, `resendStaleClaim`). A rare duplicate DM is acceptable because answers are idempotent (`reviews` unique on `delivery_sent_at`).
+- The claim is one `INSERT ... ON CONFLICT DO UPDATE SET sent_at = now, message_channel = null, message_ts = null WHERE sent_at IS NULL` (`claimCard`; the message fields of the previous delivery are cleared), and the whole selection plus claim runs under `SELECT ... FOR UPDATE` on the enrollment row, so two ticks, or a tick and an answer, cannot leave two open cards (decision 0026). The lock covers the selection and the claim, also across instances; `SKIP LOCKED` is not used. The stale-claim re-post is not under the lock: it records its message only while the same delivery (`sent_at`) is still open, and two instances could both re-post one card (accepted). The re-post is skipped for a course that has ended.
 
 ## Answer path
 
@@ -137,7 +139,7 @@ Built in Task 5 as `submitAnswer` in `src/services/answer.ts` ([decision 0025](d
 
 ## Built in Task 6a
 
-[Decision 0026](decisions/0026-task6-scheduler-choices.md). `src/services/scheduler.ts`: `next` (selection, no claim), `sendNext` (guards, selection and claim in one transaction under a `FOR UPDATE` lock on the enrollment row, then the Slack post and `message_channel`/`message_ts`), `sendFirstCards` (course start), `afterAnswer` (exempt message, completion, next card), `completeIfLearned`, `finishCourse` and `finishEndedCourses`. Slack is the `SlackPort` interface (`src/slack/port.ts`) with the recording `FakeSlack`; the Bolt implementation is Task 8. The daily tick (6b-1) and reminders, stale-claim recovery and cleanup (6b-2) are not built; a Slack failure after the claim leaves the card open without a `message_ts` until 6b-2.
+[Decision 0026](decisions/0026-task6-scheduler-choices.md). `src/services/scheduler.ts`: `next` (selection, no claim), `sendNext` (guards, selection and claim in one transaction under a `FOR UPDATE` lock on the enrollment row, then the Slack post and `message_channel`/`message_ts`), `sendFirstCards` (course start), `afterAnswer` (exempt message, completion, next card), `completeIfLearned`, `finishCourse` and `finishEndedCourses`. Slack is the `SlackPort` interface (`src/slack/port.ts`) with the recording `FakeSlack`; the Bolt implementation is Task 8. The daily tick and stale-claim recovery are Task 6b-1 (below, in Tick); reminders and cleanup (6b-2) are not built (Task 6b-2). A Slack failure after the claim leaves the card open without a `message_ts` until the tick re-posts it. The tick: [decision 0027](decisions/0027-task6b1-tick-choices.md).
 
 ## Load
 

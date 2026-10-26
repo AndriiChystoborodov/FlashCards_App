@@ -35,15 +35,17 @@ The clock starts on Monday 2026-01-05 at 09:00Z (10:00 Zurich), the date the wal
 9. section 6: a second click on A3. Expects `not_open`, still one review, `assessment_done_at` unchanged
 10. section 2: Bea answers all three right + Easy. Expects `exempt`, score 100, the "already know" message, no card open, nothing sent later
 11. section 3: card-1 Monday 14:06 Medium. Expects `scheduled_days` 2, streak 1, `due` Wednesday 14:06, no second new card (quota used)
-12. section 3: Tuesday 09:00: A3 is sent first (due Tuesday 14:05), answered Medium (`scheduled_days` 2, stability 1.89); card-2 is introduced and answered; no third card
-13. section 3: Wednesday 09:00: A2 (due 14:03) before card-1 (due 14:06); card-1 at 09:15 Medium: FSRS `due` Sunday 18 January clamped to `2026-01-15T22:59:59.999Z`, `scheduled_days` 11, streak 2, not learned; then card-3 is introduced
-14. section 3: Thursday 8 to Sunday 11 January: exactly one new card a day (card-4 to card-7); all 10 cards have a `card_states` row on Sunday
-15. section 3: Monday 12 to Wednesday 14 January: reviews only, no card asked twice in a morning
-16. section 3: Thursday 15 January: card-1 is asked again, gap 8 days, streak 3, `learned_at` that day; no card is asked twice (the clamp fix)
-17. section 3: Friday 16 January: nothing is due
-18. section 3: after `ends_at`: `finishEndedCourses` finishes the course, Ann is `completed` with `completed_progress` equal to her learned cards x 10 (the real run prints it: 4 of 10, 40), Bea stays `exempt`, the course-ended message is the last post, nothing more is sent
+12. S19: Tuesday 08:59 Zurich: `runTick` sends nothing
+13. section 3: Tuesday 09:00 `runTick`: sends A3 (due Tuesday 14:05) to Ann and nothing to Bea (exempt); A3 answered Medium (`scheduled_days` 2, stability 1.89); card-2 is introduced and answered; no third card
+14. section 3: Wednesday 09:00 `runTick`: A2 (due 14:03) before card-1 (due 14:06); card-1 at 09:15 Medium: FSRS `due` Sunday 18 January clamped to `2026-01-15T22:59:59.999Z`, `scheduled_days` 11, streak 2, not learned; then card-3 is introduced
+15. S12: Thursday 8 January 09:00 `runTick` with `failNextPost`: the pass counts one failure and the card stays claimed without `message_ts`; at 09:05 nothing is re-posted; at 09:10 the same delivery is posted again (`sent_at` unchanged, `message_ts` recorded)
+16. section 3: Thursday 8 to Sunday 11 January: exactly one new card a day (card-4 to card-7); all 10 cards have a `card_states` row on Sunday
+17. section 3: Monday 12 to Wednesday 14 January: reviews only, no card asked twice in a morning
+18. section 3: Thursday 15 January: card-1 is asked again, gap 8 days, streak 3, `learned_at` that day; no card is asked twice (the clamp fix)
+19. section 3: Friday 16 January: nothing is due
+20. section 3: `runTick` after `ends_at`: the course is finished, Ann is `completed` with `completed_progress` equal to her learned cards x 10 (the real run prints it: 4 of 10, 40), Bea stays `exempt`, the course-ended message is the last post, a second tick does nothing
 
-Each student's day is `sendNext` at 09:00 Zurich followed by Medium answers (the tick, 6b-1, will replace the direct call). The Slack side is `FakeSlack` (`src/slack/fake.ts`): it records posts and message replacements; the answer service and the scheduler are called directly. The walkthrough's sections 1 (REST/MCP), 3 (the tick itself), 4, 5 and the reminder edge cases are `pending` (Tasks 7 to 9, 6b-1, 6b-2).
+Each of Ann's days is `runTick` at the controllable clock's 09:00 Zurich (08:00Z) followed by her Medium answers; the answers send the rest of the day's cards. Course start (step 5) calls `sendFirstCards` directly, as the REST start will. The Slack side is `FakeSlack` (`src/slack/fake.ts`): it records posts and message replacements; the answer service and the scheduler are called directly. `startTick` is not used: the real interval is covered by one test in `src/services/tick.test.ts`, and Task 8 wires it into `src/index.ts`. The walkthrough's sections 1 (REST/MCP), 4, 5 and the reminder edge cases are `pending` (Tasks 7 to 9, 6b-2).
 
 `npm run db:up` waits for the compose healthcheck, so `npm run db:up && npm run db:reset` is safe on a fresh volume. The scenario uses `retain_dev`, `npm test` uses `retain_test` and `retain_reset_test`, so they can run at the same time.
 

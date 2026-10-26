@@ -20,6 +20,7 @@ const envSchema = z
     SLACK_TEST_USER_ID: z.string().optional(),
     TENANT_TIMEZONE: z.string().refine(isIanaTimezone, 'must be a valid IANA time zone name').default('UTC'),
     SEND_HOUR: z.coerce.number().int().min(0).max(23).default(9),
+    TICK_MINUTES: z.coerce.number().int().positive().default(15),
     REMOVED_RETENTION_DAYS: z.coerce.number().int().positive().default(14),
     STUDENT_ROUTES_ENABLED: z
       .enum(['true', 'false'], 'must be "true" or "false"')

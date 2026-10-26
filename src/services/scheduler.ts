@@ -1,6 +1,7 @@
 import type { Clock } from '../clock.js';
 import { claimCard, setCardMessage } from '../db/cardStates.js';
 import type { Db, Tx } from '../db/client.js';
+import { getFlashcard } from '../db/flashcards.js';
 import { finishCourse as markCourseFinished, getCourse, listEndedCourseIds } from '../db/courses.js';
 import { completeAssessment, completeEnrollment, listPresentEnrollments, lockEnrollment } from '../db/enrollments.js';
 import {
@@ -93,10 +94,36 @@ export async function sendNext(deps: SchedulerDeps, userId: string, courseId: st
   const claimed = await selectAndMaybeClaim(deps, userId, courseId, true);
   if (!claimed) return { status: 'none' };
   const { next: n, user } = claimed;
-  const { channel, ts } = await deps.slack.postCard(user.slackDmChannel ?? user.slackId!, buildCardMessage(n.card));
-  await setCardMessage(deps.db, userId, n.card.id, channel, ts);
-  if (!user.slackDmChannel) await setDmChannel(deps.db, userId, channel);
+  const { channel, ts } = await postCard(deps, user, n.card);
   return { status: 'sent', flashcardId: n.card.id, kind: n.kind, channel, ts };
+}
+
+/** Posts the card, records `message_channel`/`message_ts` and caches the DM channel. Shared by the send and the stale-claim re-send. */
+async function postCard(deps: SchedulerDeps, user: User, card: Flashcard, sentAt?: Date): Promise<{ channel: string; ts: string }> {
+  const { channel, ts } = await deps.slack.postCard(user.slackDmChannel ?? user.slackId!, buildCardMessage(card));
+  await setCardMessage(deps.db, user.id, card.id, channel, ts, sentAt);
+  if (!user.slackDmChannel) await setDmChannel(deps.db, user.id, channel);
+  return { channel, ts };
+}
+
+/**
+ * Stale-claim recovery (scheduler.md "Idempotent send"): a card claimed `staleMs` ago or more whose post never got recorded
+ * (`message_ts` null) is posted again. `sent_at` does not change: it is the same delivery. Returns true when it re-posted.
+ */
+export async function resendStaleClaim(
+  deps: SchedulerDeps,
+  userId: string,
+  courseId: string,
+  staleMs: number,
+  openCard?: Awaited<ReturnType<typeof getOpenCard>>,
+): Promise<boolean> {
+  const open = openCard === undefined ? await getOpenCard(deps.db, userId, courseId) : openCard;
+  const now = deps.clock.now();
+  if (!open || open.messageTs || !open.sentAt || now.getTime() - open.sentAt.getTime() < staleMs) return false;
+  const [user, card, course] = await Promise.all([getUser(deps.db, userId), getFlashcard(deps.db, open.flashcardId), getCourse(deps.db, courseId)]);
+  if (!user?.slackId || !card || !course || course.status !== 'active' || now >= course.endsAt) return false;
+  await postCard(deps, user, card, open.sentAt);
+  return true;
 }
 
 /** Course start: the first assessment card to every present active student, one after another. */
@@ -192,8 +219,8 @@ export async function finishCourse(deps: SchedulerDeps, courseId: string): Promi
 }
 
 /** Finishes every active course whose `ends_at` has passed (scheduler.md: "At `ends_at` the tick completes every remaining active enrollment"). */
-export async function finishEndedCourses(deps: SchedulerDeps): Promise<string[]> {
-  const ids = await listEndedCourseIds(deps.db, deps.clock.now());
+export async function finishEndedCourses(deps: SchedulerDeps, only?: string[]): Promise<string[]> {
+  const ids = (await listEndedCourseIds(deps.db, deps.clock.now())).filter((id) => !only || only.includes(id));
   for (const id of ids) {
     try {
       await finishCourse(deps, id);

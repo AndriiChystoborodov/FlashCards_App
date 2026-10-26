@@ -457,7 +457,7 @@ describe('completion', () => {
     expect(open.status).toBe('sent');
     w.clock.set(new Date('2000-01-10T13:00:00Z'));
     expect(await sendNext(w.deps, w.studentId, w.courseId)).toEqual({ status: 'none' }); // ends_at passed: nothing, even before the tick completes it
-    expect(await finishEndedCourses(w.deps)).toContain(w.courseId);
+    expect(await finishEndedCourses(w.deps, [w.courseId])).toEqual([w.courseId]);
     const e = await enrollmentOf(w.studentId);
     expect(e).toMatchObject({ status: 'completed', completedProgress: 60 });
     expect(e.completedAt).toEqual(w.clock.now());
@@ -467,7 +467,7 @@ describe('completion', () => {
     expect(w.slack.replaced).toHaveLength(1); // the open card's message
     expect(w.slack.replaced[0]).toMatchObject({ channel: (open as { channel: string }).channel, ts: (open as { ts: string }).ts });
     expect(await sendNext(w.deps, w.studentId, w.courseId)).toEqual({ status: 'none' });
-    expect(await finishEndedCourses(w.deps)).not.toContain(w.courseId); // finished once
+    expect(await finishEndedCourses(w.deps, [w.courseId])).toEqual([]); // finished once
   });
 
   it('S29: cards added to the course after completion do not reopen the enrollment, progress stays 60', async () => {

@@ -78,9 +78,10 @@ export async function claimCard(db: DbOrTx, userId: string, flashcardId: string,
   return rows.length > 0;
 }
 
-export async function setCardMessage(db: DbOrTx, userId: string, flashcardId: string, channel: string, ts: string): Promise<void> {
+/** With `sentAt` the message is recorded only while that delivery is still open (a re-post that raced an answer must not mark a closed card). */
+export async function setCardMessage(db: DbOrTx, userId: string, flashcardId: string, channel: string, ts: string, sentAt?: Date): Promise<void> {
   await db
     .update(cardStates)
     .set({ messageChannel: channel, messageTs: ts })
-    .where(and(eq(cardStates.userId, userId), eq(cardStates.flashcardId, flashcardId)));
+    .where(and(eq(cardStates.userId, userId), eq(cardStates.flashcardId, flashcardId), sentAt ? eq(cardStates.sentAt, sentAt) : undefined));
 }

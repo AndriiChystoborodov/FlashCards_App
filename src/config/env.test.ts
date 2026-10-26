@@ -21,6 +21,7 @@ describe('parseEnv', () => {
       SLACK_MODE: 'socket',
       TENANT_TIMEZONE: 'UTC',
       SEND_HOUR: 9,
+      TICK_MINUTES: 15,
       REMOVED_RETENTION_DAYS: 14,
       STUDENT_ROUTES_ENABLED: false,
     });

@@ -10,7 +10,8 @@ import { createDb } from '../src/db/client.js';
 import { resetDatabase } from '../src/db/reset.js';
 import * as schema from '../src/db/schema.js';
 import { submitAnswer } from '../src/services/answer.js';
-import { afterAnswer, finishEndedCourses, sendFirstCards, sendNext, TEXT } from '../src/services/scheduler.js';
+import { afterAnswer, sendFirstCards, sendNext, TEXT } from '../src/services/scheduler.js';
+import { runTick } from '../src/services/tick.js';
 import { FakeSlack } from '../src/slack/fake.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
@@ -51,18 +52,28 @@ async function reply(userId: string, chosenOption: number | null, rating?: 'hard
 }
 const sentName = (s: Awaited<ReturnType<typeof reply>>['sent']) => (s.status === 'sent' ? nameOf(s.flashcardId) : 'none');
 
-/** A student's morning at 09:00 Zurich (08:00Z): the tick's send (Task 6 sends it directly), then Medium on every card until none is left. */
-async function studentDay(userId: string, date: string) {
-  clock.set(at(`${date}T08:00:00Z`));
+const TICK = { sendHour: 9 };
+
+/** Ann answers Medium on every open card, five minutes apart, until none is left (a card sent by the tick or by the answer before). */
+async function answerAll(userId: string) {
   const log: { card: string; kind: string }[] = [];
-  let sent = await sendNext(deps, userId, ids.course);
-  for (let n = 0; sent.status === 'sent'; n++) {
-    assert.ok(n < 20, `more than 20 cards in one morning on ${date}`);
-    log.push({ card: nameOf(sent.flashcardId), kind: sent.kind });
+  for (let n = 0; ; n++) {
+    const open = await getOpenCard(db, userId, ids.course);
+    if (!open) return log;
+    assert.ok(n < 20, 'more than 20 cards in one morning');
+    const st = await state(userId, open.flashcardId);
+    log.push({ card: nameOf(open.flashcardId), kind: st.introducedAt.getTime() === st.sentAt?.getTime() ? 'new' : 'due' });
     clock.set(new Date(clock.now().getTime() + 5 * 60_000));
-    sent = (await reply(userId, 0, 'medium')).sent;
+    await reply(userId, 0, 'medium');
   }
-  return log;
+}
+
+/** A day of Ann's: the tick at 09:00 Zurich (08:00Z), then her Medium answers. The tick sends the first card, the answers send the rest. */
+async function tickDay(date: string) {
+  clock.set(at(`${date}T08:00:00Z`));
+  const t = await runTick(deps, TICK);
+  assert.equal(t.failed, 0);
+  return answerAll(ids.ann);
 }
 
 interface Step {
@@ -217,11 +228,19 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 3: Tuesday 09:00: A3 (due Tuesday 14:05) is sent first, then card-2 is introduced (quota 1); Ann answers both',
+    name: 'S19: Tuesday 08:59 Zurich: the tick sends nothing yet (SEND_HOUR 9)',
+    run: async () => {
+      clock.set(at('2026-01-06T07:59:00Z'));
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
+      assert.equal(await getOpenCard(db, ids.ann, ids.course), null);
+    },
+  },
+  {
+    name: 'section 3: Tuesday 09:00 tick: A3 (due Tuesday 14:05) is sent first (Bea, exempt, gets nothing), then card-2 is introduced (quota 1); Ann answers both',
     run: async () => {
       clock.set(at('2026-01-06T08:00:00Z'));
-      const first = await sendNext(deps, ids.ann, ids.course);
-      assert.deepEqual(first.status === 'sent' && [first.kind, nameOf(first.flashcardId)], ['due', 'A3']);
+      assert.deepEqual(await runTick(deps, TICK), { sent: 1, resent: 0, failed: 0 });
+      assert.equal((await getOpenCard(db, ids.ann, ids.course))?.flashcardId, A(3));
       clock.set(at('2026-01-06T08:05:00Z'));
       const a3 = await reply(ids.ann, 0, 'medium');
       const s = (await state(ids.ann, A(3))).state;
@@ -234,11 +253,11 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 3: Wednesday 09:00: A2 (due 14:03) before card-1 (due 14:06), then card-3; card-1 at 09:15 is clamped to the end of Thursday, not learned',
+    name: 'section 3: Wednesday 09:00 tick: A2 (due 14:03) before card-1 (due 14:06), then card-3; card-1 at 09:15 is clamped to the end of Thursday, not learned',
     run: async () => {
       clock.set(at('2026-01-07T08:00:00Z'));
-      const first = await sendNext(deps, ids.ann, ids.course);
-      assert.deepEqual(first.status === 'sent' && [first.kind, nameOf(first.flashcardId)], ['due', 'A2']);
+      assert.deepEqual(await runTick(deps, TICK), { sent: 1, resent: 0, failed: 0 });
+      assert.equal((await getOpenCard(db, ids.ann, ids.course))?.flashcardId, A(2));
       clock.set(at('2026-01-07T08:05:00Z'));
       const a2 = await reply(ids.ann, 0, 'medium');
       assert.equal(sentName(a2.sent), 'card-1');
@@ -256,14 +275,35 @@ const steps: Step[] = [
     },
   },
   {
-    name: 'section 3: Thursday 8 to Sunday 11 January: one new card per day until all 7 are introduced',
+    name: 'S12: Thursday 8 January 09:00 tick: Slack fails after the claim; 5 minutes later nothing; at 10 minutes the same delivery is posted again',
+    run: async () => {
+      clock.set(at('2026-01-08T08:00:00Z'));
+      slack.failNextPost = new Error('slack down');
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 1 });
+      const claim = await getOpenCard(db, ids.ann, ids.course);
+      assert.ok(claim && claim.messageTs === null, 'the card is claimed without a message');
+      const posts = slack.posted.length;
+      clock.set(at('2026-01-08T08:05:00Z'));
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
+      assert.equal(slack.posted.length, posts);
+      clock.set(at('2026-01-08T08:10:00Z'));
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 1, failed: 0 });
+      const after = await getOpenCard(db, ids.ann, ids.course);
+      assert.equal(after?.sentAt?.getTime(), claim.sentAt?.getTime());
+      assert.equal(after?.messageTs, slack.posted.at(-1)?.ts);
+      assert.equal(slack.posted.length, posts + 1);
+    },
+  },
+  {
+    name: 'section 3: Thursday 8 to Sunday 11 January: one new card per day until all 7 are introduced (Thursday continues after the recovery)',
     run: async () => {
       const introduced: string[] = [];
-      for (const d of ['2026-01-08', '2026-01-09', '2026-01-10', '2026-01-11']) {
-        const log = await studentDay(ids.ann, d);
+      let log = await answerAll(ids.ann); // Thursday: the recovered card and what follows
+      for (const d of ['2026-01-09', '2026-01-10', '2026-01-11', null]) {
         const fresh = log.filter((l) => l.kind === 'new').map((l) => l.card);
-        assert.equal(fresh.length, 1, `${d}: expected one new card, got ${JSON.stringify(log)}`);
+        assert.equal(fresh.length, 1, `expected one new card, got ${JSON.stringify(log)}`);
         introduced.push(...fresh);
+        if (d) log = await tickDay(d);
       }
       assert.deepEqual(introduced, ['card-4', 'card-5', 'card-6', 'card-7']);
       const rows = await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann));
@@ -274,7 +314,7 @@ const steps: Step[] = [
     name: 'section 3: Monday 12 to Wednesday 14 January: reviews only, no new cards, nothing asked twice in a day',
     run: async () => {
       for (const d of ['2026-01-12', '2026-01-13', '2026-01-14']) {
-        const log = await studentDay(ids.ann, d);
+        const log = await tickDay(d);
         assert.ok(log.every((l) => l.kind === 'due'), `${d}: ${JSON.stringify(log)}`);
         assert.equal(new Set(log.map((l) => l.card)).size, log.length, `${d}: a card was asked twice: ${JSON.stringify(log)}`);
       }
@@ -283,7 +323,7 @@ const steps: Step[] = [
   {
     name: 'section 3: Thursday 15 January: card-1 is asked again, gap 8 days, learned; no card is asked twice on the last review day (clamp fix)',
     run: async () => {
-      const log = await studentDay(ids.ann, '2026-01-15');
+      const log = await tickDay('2026-01-15');
       assert.ok(log.some((l) => l.card === 'card-1'), JSON.stringify(log));
       assert.equal(new Set(log.map((l) => l.card)).size, log.length, `a card was asked twice: ${JSON.stringify(log)}`);
       const s = (await state(ids.ann, CARD(1))).state;
@@ -294,14 +334,14 @@ const steps: Step[] = [
   {
     name: 'section 3: Friday 16 January: nothing is due any more',
     run: async () => {
-      assert.deepEqual(await studentDay(ids.ann, '2026-01-16'), []);
+      assert.deepEqual(await tickDay('2026-01-16'), []);
     },
   },
   {
-    name: 'section 3: after ends_at: the course is finished, Ann is completed with her real progress, Bea stays exempt, nothing more is sent',
+    name: 'section 3: tick after ends_at: the course is finished, Ann is completed with her real progress, Bea stays exempt, nothing more is sent',
     run: async () => {
       clock.set(at('2026-01-16T23:00:00Z')); // ends_at was 22:59
-      assert.deepEqual(await finishEndedCourses(deps), [ids.course]);
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
       const learned = (await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann))).filter((r) => r.learnedAt).length;
       const ann = await enrollmentOf(ids.ann);
       assert.equal(ann.status, 'completed');
@@ -312,7 +352,7 @@ const steps: Step[] = [
       const [c] = await db.select().from(schema.courses).where(eq(schema.courses.id, ids.course));
       assert.equal(c!.status, 'finished');
       assert.deepEqual(await sendNext(deps, ids.ann, ids.course), { status: 'none' });
-      assert.deepEqual(await finishEndedCourses(deps), []);
+      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 }); // finished once, nothing left to do
     },
   },
 ];
@@ -320,10 +360,9 @@ const steps: Step[] = [
 // Walkthrough sections that need later tasks (docs/scenario.md). Listed, not run.
 const pending = [
   '1 teacher sets up (create_course, add_flashcards, enroll_students, start_course): Tasks 7, 9',
-  '3 normal mode driven by the daily tick at SEND_HOUR (the steps above send directly): Task 6b-1',
   '4 progress: Task 7',
   '5 stop_course: Task 7',
-  '6 edge cases (reminders, stale claims, removal and cleanup; the second click is checked above): Task 6b-2',
+  '6 edge cases (reminders, removal and cleanup; stale-claim recovery runs above; the second click is checked above): Task 6b-2',
 ];
 
 for (const [i, step] of steps.entries()) {

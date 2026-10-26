@@ -1,6 +1,6 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import type { DbOrTx } from './client.js';
-import { enrollments } from './schema.js';
+import { courses, enrollments } from './schema.js';
 
 /** The one predicate for a present student (data-model.md "Derived values"); every enrollment query uses it. */
 export const presentEnrollment = isNull(enrollments.removedAt);
@@ -45,3 +45,11 @@ export async function completeEnrollment(db: DbOrTx, courseId: string, userId: s
     .returning({ userId: enrollments.userId });
   return rows.length > 0;
 }
+
+/** Every present `active` enrollment of an `active` course: who the tick looks at. */
+export const listTickTargets = (db: DbOrTx, courseIds?: string[]) =>
+  db
+    .select({ userId: enrollments.userId, courseId: enrollments.courseId })
+    .from(enrollments)
+    .innerJoin(courses, eq(courses.id, enrollments.courseId))
+    .where(and(eq(courses.status, 'active'), eq(enrollments.status, 'active'), presentEnrollment, courseIds ? inArray(enrollments.courseId, courseIds) : undefined));

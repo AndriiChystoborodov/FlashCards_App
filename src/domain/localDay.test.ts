@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueNotAfter, endOfLocalDay, isValidTimezone, localDaysThrough, startOfLocalDayOf } from './localDay.js';
+import { dueNotAfter, endOfLocalDay, isValidTimezone, localDaysThrough, localHour, startOfLocalDayOf } from './localDay.js';
 
 const Z = 'Europe/Zurich';
 const iso = (d: Date) => d.toISOString();
@@ -76,5 +76,43 @@ describe('startOfLocalDayOf and localDaysThrough', () => {
 
   it('counts a DST change day as one day', () => {
     expect(localDaysThrough('Europe/Zurich', new Date('2026-03-28T10:00:00Z'), new Date('2026-03-30T10:00:00Z'))).toBe(3);
+  });
+});
+
+describe('localHour', () => {
+  const h = (tz: string, iso: string) => localHour(tz, new Date(iso));
+  it('Zurich: 09:00 local is 08:00Z in winter and 07:00Z in summer', () => {
+    expect(h(Z, '2026-01-06T08:00:00Z')).toBe(9);
+    expect(h(Z, '2026-01-06T07:59:00Z')).toBe(8);
+    expect(h(Z, '2026-07-01T07:00:00Z')).toBe(9);
+  });
+  it('Zurich spring forward 2026-03-29 and fall back 2026-10-25', () => {
+    expect(h(Z, '2026-03-29T00:59:00Z')).toBe(1);
+    expect(h(Z, '2026-03-29T01:00:00Z')).toBe(3); // 02:00 does not exist
+    expect(h(Z, '2026-03-29T06:59:00Z')).toBe(8);
+    expect(h(Z, '2026-03-29T07:00:00Z')).toBe(9);
+    expect(h(Z, '2026-10-25T00:30:00Z')).toBe(2);
+    expect(h(Z, '2026-10-25T01:30:00Z')).toBe(2); // 02:30 happens twice
+    expect(h(Z, '2026-10-25T07:59:00Z')).toBe(8);
+    expect(h(Z, '2026-10-25T08:00:00Z')).toBe(9);
+  });
+  it('Asia/Kolkata has a half-hour offset: 09:00 local is 03:30Z', () => {
+    expect(h('Asia/Kolkata', '2026-01-06T03:29:00Z')).toBe(8);
+    expect(h('Asia/Kolkata', '2026-01-06T03:30:00Z')).toBe(9);
+    expect(h('Asia/Kolkata', '2026-07-06T03:30:00Z')).toBe(9); // no DST
+  });
+  it('America/New_York: spring forward 2026-03-08 and fall back 2026-11-01 (US dates, not Europe\'s)', () => {
+    expect(h('America/New_York', '2026-03-08T06:59:00Z')).toBe(1); // EST
+    expect(h('America/New_York', '2026-03-08T07:00:00Z')).toBe(3); // 02:00 EST jumps to 03:00 EDT
+    expect(h('America/New_York', '2026-03-08T13:00:00Z')).toBe(9); // EDT, 09:00 is 13:00Z
+    expect(h('America/New_York', '2026-03-29T12:59:00Z')).toBe(8); // Zurich's date: New York is already on EDT
+    expect(h('America/New_York', '2026-11-01T05:30:00Z')).toBe(1); // EDT
+    expect(h('America/New_York', '2026-11-01T06:30:00Z')).toBe(1); // 01:30 happens twice
+    expect(h('America/New_York', '2026-11-01T13:59:00Z')).toBe(8); // EST, 09:00 is 14:00Z
+    expect(h('America/New_York', '2026-11-01T14:00:00Z')).toBe(9);
+  });
+  it('the hour is 0 to 23 (never 24) at midnight', () => {
+    expect(h(Z, '2026-01-05T23:00:00Z')).toBe(0);
+    expect(h('UTC', '2026-01-05T00:00:00Z')).toBe(0);
   });
 });

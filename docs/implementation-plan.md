@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Tasks 1 to 5 and 6a are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md), [0026](decisions/0026-task6-scheduler-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Tasks 1 to 5, 6a and 6b-1 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md), [0026](decisions/0026-task6-scheduler-choices.md), [0027](decisions/0027-task6b1-tick-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -15,7 +15,7 @@ Design phase output, 2026-10-24. Tasks 1 to 5 and 6a are built ([0019](decisions
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
 | End-to-end scenario | [scenario.md](scenario.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0026 |
+| Decisions | [decisions/](decisions/) 0002 to 0027 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -51,10 +51,10 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 4a End-to-end scenario script (**proposed placement**, [0023](decisions/0023-local-first.md)) | a TypeScript script run with `tsx` that follows [walkthrough.md](walkthrough.md): the teacher creates a course and flashcards, enrolls students, student answers arrive as simulated Slack actions through a fake Slack, and the REST API is driven against local Postgres. Each step has an expected result; a failed step stops with a clear message. Includes a DB reset/init script (migrate + clean) and an injectable clock interface (`now()`), so the script can advance days. Services and the scheduler read time only from that clock. 4a delivers the reset script, the clock and a skeleton; each later task extends the scenario ([scenario.md](scenario.md), [decision 0024](decisions/0024-task4a-scenario-choices.md)) | `npm run scenario` passes the steps available so far; reset script rebuilds an empty database |
 | 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only). Built as `submitAnswer` in `src/services/answer.ts` and `src/domain/localDay.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)); completing an enrollment after the last learned card is Task 6 (S16), so until then a student at 100% stays `active` | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52, service part only for S3, S10, S34 (the Task 6 and 7 rows add the rest) |
 | 6a Scheduler core | `next`, `sendNext`, `sendFirstCards`, `afterAnswer`, completion and `finishCourse`, the Slack port and its fake, `due` clamp fix, scenario section 3 ([decision 0026](decisions/0026-task6-scheduler-choices.md)) | S1, S3 and S4 (rest), S5 to S11, S15 to S17, S21 to S30, S34 (rest), S36, S38, S39 (course part), S42, S46, S53 |
-| 6b-1 Daily tick | `runTick` and `startTick` in `src/index.ts`: `SEND_HOUR` in local time, `finishEndedCourses` at `ends_at`, `TICK_MINUTES` | S19; repeated tick sends nothing; S39 (tick part) |
-| 6b-2 Reminders, recovery, cleanup | reminders (`REMINDER_AFTER_HOURS`, `MAX_REMINDERS`), stale-claim re-send, the 14-day cleanup | S12, S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment |
+| 6b-1 Daily tick (built) | `runTick` and `startTick` in `src/services/tick.ts` ([decision 0027](decisions/0027-task6b1-tick-choices.md)): `SEND_HOUR` in local time, stale-claim recovery after 10 minutes, `finishEndedCourses` at `ends_at`, `TICK_MINUTES`. Not started from `src/index.ts` until Task 8 | S19, S12; repeated tick sends nothing; S39 (tick part); both Zurich DST days, a student without a Slack id, overlap and `stop()` |
+| 6b-2 Reminders, cleanup | reminders (`REMINDER_AFTER_HOURS`, `MAX_REMINDERS`), the 14-day cleanup (stale-claim re-send moved to 6b-1) | S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11, R12 to R19, R21 to R29, S20, S40 |
-| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) | H1 to H9, H10 |
+| 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications; `src/index.ts` calls `startTick` with the real Slack adapter (`intervalMs` from `TICK_MINUTES`, `sendHour` from `SEND_HOUR`) and implements `SlackPort` with Bolt; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) | H1 to H9, H10 |
 | 9 MCP | [mcp-teacher-api.md](mcp-teacher-api.md) | M1 to M4 |
 
 Task 4a is proposed to sit right after Task 4 (numbering of the others is unchanged). After every task the scenario script runs and is extended.
