@@ -43,3 +43,17 @@ export function dueNotAfter(tz: string, endsAt: Date): Date {
   const p = localParts(tz, endsAt.getTime());
   return new Date(startOfLocalDay(tz, p.year, p.month, p.day) - 1);
 }
+
+/** The first millisecond of the local day containing `date`. */
+export function startOfLocalDayOf(tz: string, date: Date): Date {
+  const p = localParts(tz, date.getTime());
+  return new Date(startOfLocalDay(tz, p.year, p.month, p.day));
+}
+
+/** Local calendar days from the day of `from` through the day of `to`, both inclusive; at least 1 (decision 0006). */
+export function localDaysThrough(tz: string, from: Date, to: Date): number {
+  const a = localParts(tz, from.getTime());
+  const b = localParts(tz, to.getTime());
+  const days = Math.round((Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / 86_400_000) + 1;
+  return Math.max(1, days);
+}

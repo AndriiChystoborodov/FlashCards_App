@@ -38,7 +38,7 @@ next(enrollment, now):
 
 - `endOfLocalDay` is the end of the student's local day (from `users.tz`, fallback `TENANT_TIMEZONE`). Comparing `due` with `now` would be wrong: the tick runs once a day at `SEND_HOUR`, so a card answered at 14:00 and due in 3 days has `due` of 14:00 on day 3, which is after the 09:00 tick, and would wait until day 4. Anything due today is sent at the morning tick.
 - Learned (`learned_at` set) follows [decision 0015](decisions/0015-learned-needs-retention-gap.md): streak of 2 plus at least 7 days since the previous review. A card with a streak of 2 and a short gap is still due and is asked again.
-- After `applyAnswer`, the answer service clamps the new `due` to `dueNotAfter`: the end of the local day (student timezone) before `courses.ends_at`. FSRS dues after that are clamped to it, so every unlearned card gets a last review before the course ends. See [fsrs-calculator.md](fsrs-calculator.md#clamping-due-in-the-answer-service).
+- After `applyAnswer`, the answer service clamps the new `due` to `dueNotAfter`: the end of the local day (student timezone) before `courses.ends_at`. FSRS dues after that are clamped to it when that day is later than today's local day, so every unlearned card gets a last review before the course ends and a card answered on that last day is not sent again. See [fsrs-calculator.md](fsrs-calculator.md#clamping-due-in-the-answer-service).
 - Not decided: what to do with cards introduced late; see the open question below. Until it is decided, late cards may stay unlearned and progress shows that honestly.
 - A card gets its `card_states` row when first sent (`newCardState(now)`), with `introduced_at = now` and `sent_at = now`.
 - `introduced_today` counts `introduced_at` inside the student's local day, for non-assessment cards only (`flashcards.is_assessment = false`). Assessment cards also get `introduced_at` on their first send, but they are not counted: they ignore the quota and must not use it up.
@@ -46,17 +46,17 @@ next(enrollment, now):
 - `quotaToday = ceil((remainingNew + introducedToday) / remainingDays)` ([decision 0006](decisions/0006-new-cards-per-day.md)), recalculated each day from the number of unintroduced non-assessment cards and the local days left through `ends_at`. Assessment cards are not counted.
 - Assessment cards ignore the quota; the student gets them all, one after another, before anything else.
 - Due cards have no daily cap in the MVP. If a student falls behind, the backlog drains one card per answer. Open: add `MAX_DUE_PER_DAY` if students complain.
-- Completion ([decision 0011](decisions/0011-enrollment-completed.md)): an `active` enrollment becomes `completed` when all its cards are learned or when the course reaches `ends_at`, whichever comes first. The tick (and the answer handler after the last learned card) sets `status`, `completed_at` and `completed_progress`, and sends a DM (congratulation, or "the course has ended" with the final progress). A completed enrollment gets no cards and no reminders.
-- At `ends_at` the tick completes every remaining `active` enrollment and sets the course to `finished`.
+- Completion ([decision 0011](decisions/0011-enrollment-completed.md)): an `active` enrollment becomes `completed` when all its cards are learned or when the course reaches `ends_at`, whichever comes first. `afterAnswer` (after the last learned card) and `finishEndedCourses` (at `ends_at`, called by the tick) set `status`, `completed_at` and `completed_progress`, and send a DM (congratulation, or "the course has ended" with the final progress). A completed enrollment gets no cards and no reminders.
+- At `ends_at` the tick completes every remaining `active` enrollment and sets the course to `finished`: `finishEndedCourses(deps)`, built in 6a; the tick that calls it is 6b-1. Until the tick runs, `next()` already returns none once `now >= ends_at`.
 - Exempt students get no cards and never become `completed`.
 
-> **Open question: short courses cannot finish.** The daily N spreads new cards over the whole course ([decision 0006](decisions/0006-new-cards-per-day.md)), and a card is learned only after a 7-day retention gap ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). Together, a card introduced late has no time left to reach the gap before `ends_at`. In the walkthrough's 12-day course a student who answers every card Medium can learn only about 5 of 10 cards (the user's estimate, not recomputed here). Options:
+> **Open question: short courses cannot finish.** The daily N spreads new cards over the whole course ([decision 0006](decisions/0006-new-cards-per-day.md)), and a card is learned only after a 7-day retention gap ([decision 0015](decisions/0015-learned-needs-retention-gap.md)). Together, a card introduced late has no time left to reach the gap before `ends_at`. In the walkthrough's 12-day course a student who answers every card Medium can learn only about 5 of 10 cards (the user's estimate; recomputed in Task 6a: 4 of 10, see [decision 0026](decisions/0026-task6-scheduler-choices.md)). Options:
 >
 > 1. Stop introducing new cards `INTRO_CUTOFF_DAYS` (10) before `ends_at`.
 > 2. Scale `MIN_RETENTION_DAYS` with the course length.
 > 3. Require courses of about 4 weeks or more (reject or warn at `start`).
 >
-> Decide before Task 6 (scheduler); the choice changes the selection rule and the quota formula.
+> Decided for now ([decision 0026](decisions/0026-task6-scheduler-choices.md)): none of the three. The quota runs to `ends_at` and the limit is recorded; the walkthrough's perfect Medium student learns 4 of 10.
 
 ## When a card is sent
 
@@ -133,7 +133,11 @@ sequenceDiagram
 
 Steps 3 to 4 run in one transaction.
 
-Built in Task 5 as `submitAnswer` in `src/services/answer.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)): it covers steps 3 and 4 (the Slack first click and steps 1, 2 and 5 are Task 8 and Task 6). It checks the card in this order and refuses with a reason code, storing nothing: `removed`, `course_over`, `not_open`, `sent_again` (plus `not_enrolled`). A repeated delivery returns `duplicate`. An answer clears `sent_at`, `reminded_at` and `reminder_count`. It does not complete an enrollment: until Task 6 (S16) a student with every card learned stays `active`.
+Built in Task 5 as `submitAnswer` in `src/services/answer.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)): it covers steps 3 and 4 (the Slack first click and steps 1, 2 and 5 are Task 8 and Task 6). It checks the card in this order and refuses with a reason code, storing nothing: `removed`, `course_over`, `not_open`, `sent_again` (plus `not_enrolled`). A repeated delivery returns `duplicate`. An answer clears `sent_at`, `reminded_at` and `reminder_count`. It does not complete an enrollment: `afterAnswer` in `src/services/scheduler.ts` does (S16).
+
+## Built in Task 6a
+
+[Decision 0026](decisions/0026-task6-scheduler-choices.md). `src/services/scheduler.ts`: `next` (selection, no claim), `sendNext` (guards, selection and claim in one transaction under a `FOR UPDATE` lock on the enrollment row, then the Slack post and `message_channel`/`message_ts`), `sendFirstCards` (course start), `afterAnswer` (exempt message, completion, next card), `completeIfLearned`, `finishCourse` and `finishEndedCourses`. Slack is the `SlackPort` interface (`src/slack/port.ts`) with the recording `FakeSlack`; the Bolt implementation is Task 8. The daily tick (6b-1) and reminders, stale-claim recovery and cleanup (6b-2) are not built; a Slack failure after the claim leaves the card open without a `message_ts` until 6b-2.
 
 ## Load
 

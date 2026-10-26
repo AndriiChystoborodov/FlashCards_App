@@ -28,7 +28,7 @@ export const ALREADY_ANSWERED_TEXT = 'This card was already answered.';
 
 const RATING_LABELS: Record<Rating, string> = { hard: 'Hard', medium: 'Medium', easy: 'Easy' };
 
-const textOnly = (text: string): CardMessage => ({
+export const textOnly = (text: string): CardMessage => ({
   text,
   blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }],
 });

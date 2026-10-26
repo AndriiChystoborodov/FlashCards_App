@@ -1,6 +1,6 @@
 import { applyAnswer, type Answer, type CardState, type Review } from '../domain/calculator.js';
 import { evaluateAssessment } from '../domain/assessment.js';
-import { dueNotAfter, isValidTimezone } from '../domain/localDay.js';
+import { dueNotAfter, endOfLocalDay } from '../domain/localDay.js';
 import type { Clock } from '../clock.js';
 import { getCardState, markLearned, upsertCardState } from '../db/cardStates.js';
 import type { Db } from '../db/client.js';
@@ -9,6 +9,7 @@ import { completeAssessment, getEnrollment } from '../db/enrollments.js';
 import { getFlashcard, listFlashcardsByCourse } from '../db/flashcards.js';
 import { insertReview, listAssessmentReviews } from '../db/reviews.js';
 import { getUser } from '../db/users.js';
+import { studentTimezone } from './timezone.js';
 
 export interface AnswerDeps {
   db: Db;
@@ -87,15 +88,12 @@ export async function submitAnswer(deps: AnswerDeps, input: AnswerInput): Promis
     if (!inserted) return { status: 'duplicate' };
 
     const user = await getUser(tx, userId);
-    let tz = user?.tz ?? deps.tenantTimezone;
-    if (!isValidTimezone(tz)) {
-      console.warn(`invalid timezone ${JSON.stringify(tz)} for user ${userId}, using ${deps.tenantTimezone}`);
-      tz = deps.tenantTimezone;
-    }
+    const tz = studentTimezone(user, deps.tenantTimezone, userId);
     const limit = dueNotAfter(tz, course.endsAt);
     const state = applied.state;
     let clampedFrom: Date | null = null;
-    if (state.due > limit && limit > now) {
+    // Clamp only to a later local day: clamping to today would make next() select the card again at once (decision 0025, amendment).
+    if (state.due > limit && limit > endOfLocalDay(tz, now)) {
       clampedFrom = state.due;
       state.due = limit;
     }

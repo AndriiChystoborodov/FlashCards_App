@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueNotAfter, endOfLocalDay, isValidTimezone } from './localDay.js';
+import { dueNotAfter, endOfLocalDay, isValidTimezone, localDaysThrough, startOfLocalDayOf } from './localDay.js';
 
 const Z = 'Europe/Zurich';
 const iso = (d: Date) => d.toISOString();
@@ -52,5 +52,29 @@ describe('isValidTimezone', () => {
   it('accepts IANA names and rejects garbage', () => {
     expect(isValidTimezone(Z)).toBe(true);
     expect(isValidTimezone('Mars/Olympus')).toBe(false);
+  });
+});
+
+describe('startOfLocalDayOf and localDaysThrough', () => {
+  it('startOfLocalDayOf is the first millisecond of the local day, across DST', () => {
+    expect(startOfLocalDayOf('Europe/Zurich', new Date('2026-01-05T09:00:00Z'))).toEqual(new Date('2026-01-04T23:00:00Z'));
+    expect(startOfLocalDayOf('Europe/Zurich', new Date('2026-03-29T10:00:00Z'))).toEqual(new Date('2026-03-28T23:00:00Z'));
+    expect(startOfLocalDayOf('America/Los_Angeles', new Date('2026-01-16T03:00:00Z'))).toEqual(new Date('2026-01-15T08:00:00Z'));
+  });
+
+  it('counts local days inclusive: walkthrough Monday 5 January to Friday 16 January is 12', () => {
+    expect(localDaysThrough('Europe/Zurich', new Date('2026-01-05T13:06:00Z'), new Date('2026-01-16T22:59:00Z'))).toBe(12);
+  });
+
+  it('the local day, not UTC, decides: 23:30 Zurich on the 5th and 00:30 on the 6th are two days apart by one', () => {
+    expect(localDaysThrough('Europe/Zurich', new Date('2026-01-05T22:30:00Z'), new Date('2026-01-05T23:30:00Z'))).toBe(2);
+  });
+
+  it('is at least 1, also when ends_at is already past (S27)', () => {
+    expect(localDaysThrough('UTC', new Date('2026-01-10T00:00:00Z'), new Date('2026-01-01T00:00:00Z'))).toBe(1);
+  });
+
+  it('counts a DST change day as one day', () => {
+    expect(localDaysThrough('Europe/Zurich', new Date('2026-03-28T10:00:00Z'), new Date('2026-03-30T10:00:00Z'))).toBe(3);
   });
 });

@@ -1,6 +1,6 @@
 # Implementation plan and index
 
-Design phase output, 2026-10-24. Tasks 1 to 5 are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
+Design phase output, 2026-10-24. Tasks 1 to 5 and 6a are built ([0019](decisions/0019-env-config-and-tooling.md), [0020](decisions/0020-slack-spike-choices.md), [0021](decisions/0021-task3-calculator-choices.md), [0022](decisions/0022-task4-schema-choices.md), [0025](decisions/0025-task5-answer-service-choices.md), [0026](decisions/0026-task6-scheduler-choices.md)); the rest is not. Read `AGENTS.md` first; this file refines the Roadmap, it does not replace it.
 
 ## Design documents
 
@@ -15,7 +15,7 @@ Design phase output, 2026-10-24. Tasks 1 to 5 are built ([0019](decisions/0019-e
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
 | End-to-end scenario | [scenario.md](scenario.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0025 |
+| Decisions | [decisions/](decisions/) 0002 to 0026 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 
@@ -50,7 +50,9 @@ Layers: routes and Bolt handlers are thin; rules live in services and `src/domai
 | 4 Schema and repositories | [data-model.md](data-model.md); [decision 0010](decisions/0010-database-postgres-supabase.md) (hosting superseded by [0023](decisions/0023-local-first.md)); Drizzle and drizzle-kit ([decision 0013](decisions/0013-drizzle-orm-and-kit.md)) | migration runs; repositories round-trip `CardState` including null `last_review`; D1 to D12 ([decision 0022](decisions/0022-task4-schema-choices.md)) |
 | 4a End-to-end scenario script (**proposed placement**, [0023](decisions/0023-local-first.md)) | a TypeScript script run with `tsx` that follows [walkthrough.md](walkthrough.md): the teacher creates a course and flashcards, enrolls students, student answers arrive as simulated Slack actions through a fake Slack, and the REST API is driven against local Postgres. Each step has an expected result; a failed step stops with a clear message. Includes a DB reset/init script (migrate + clean) and an injectable clock interface (`now()`), so the script can advance days. Services and the scheduler read time only from that clock. 4a delivers the reset script, the clock and a skeleton; each later task extends the scenario ([scenario.md](scenario.md), [decision 0024](decisions/0024-task4a-scenario-choices.md)) | `npm run scenario` passes the steps available so far; reset script rebuilds an empty database |
 | 5 Answer service | transaction: review insert, state update, `due` clamp, assessment evaluation, `learnedAt = now` for passed assessment cards (`evaluateAssessment` returns flags only). Built as `submitAnswer` in `src/services/answer.ts` and `src/domain/localDay.ts` ([decision 0025](decisions/0025-task5-answer-service-choices.md)); completing an enrollment after the last learned card is Task 6 (S16), so until then a student at 100% stays `active` | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52, service part only for S3, S10, S34 (the Task 6 and 7 rows add the rest) |
-| 6 Scheduler | selection, tick, idempotent send | S1, S5 to S9, S11, S12, S15 to S19, S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
+| 6a Scheduler core | `next`, `sendNext`, `sendFirstCards`, `afterAnswer`, completion and `finishCourse`, the Slack port and its fake, `due` clamp fix, scenario section 3 ([decision 0026](decisions/0026-task6-scheduler-choices.md)) | S1, S3 and S4 (rest), S5 to S11, S15 to S17, S21 to S30, S34 (rest), S36, S38, S39 (course part), S42, S46, S53 |
+| 6b-1 Daily tick | `runTick` and `startTick` in `src/index.ts`: `SEND_HOUR` in local time, `finishEndedCourses` at `ends_at`, `TICK_MINUTES` | S19; repeated tick sends nothing; S39 (tick part) |
+| 6b-2 Reminders, recovery, cleanup | reminders (`REMINDER_AFTER_HOURS`, `MAX_REMINDERS`), stale-claim re-send, the 14-day cleanup | S12, S18, S32, S33, S35, S43, S44, S47, S48; reviews and re-enrollment |
 | 7 REST API | [rest-api.md](rest-api.md) with token middleware | R1 to R11, R12 to R19, R21 to R29, S20, S40 |
 | 8 Slack wiring | handlers to the answer service, enrollment lookup, course notifications; move the log timestamp in `src/slack/handlers.ts` (`deps.now ?? new Date()`) to the `Clock` ([decision 0024](decisions/0024-task4a-scenario-choices.md)) | H1 to H9, H10 |
 | 9 MCP | [mcp-teacher-api.md](mcp-teacher-api.md) | M1 to M4 |
@@ -74,7 +76,7 @@ Tasks 5 and 6 can swap; 7 and 9 only need 4 and 5. Tasks 1 to 3 are the first se
 
 All earlier open questions are decided: one deployment per tenant ([0012](decisions/0012-one-deployment-per-tenant.md)), Drizzle ([0013](decisions/0013-drizzle-orm-and-kit.md)), hashed teacher token ([0014](decisions/0014-teacher-token-hashed.md)), course end ([0011](decisions/0011-enrollment-completed.md)), new cards join the pool ([0006](decisions/0006-new-cards-per-day.md)).
 
-**Open, decide before Task 6 (scheduler):** short courses cannot finish. With the quota spread over the whole course ([0006](decisions/0006-new-cards-per-day.md)) and the 7-day retention gap ([0015](decisions/0015-learned-needs-retention-gap.md)), a perfect Medium student in the walkthrough's 12-day course can learn only about 5 of 10 cards (the user's estimate). Options: (1) stop new cards `INTRO_CUTOFF_DAYS` (10) before `ends_at`; (2) scale `MIN_RETENTION_DAYS` with course length; (3) require courses of about 4 weeks or more. Details in [scheduler.md](scheduler.md#selecting-the-next-card).
+**Decided for now ([0026](decisions/0026-task6-scheduler-choices.md)): no cutoff, the limit is recorded.** Short courses cannot finish all cards (the scenario's perfect Medium student learns 4 of 10). With the quota spread over the whole course ([0006](decisions/0006-new-cards-per-day.md)) and the 7-day retention gap ([0015](decisions/0015-learned-needs-retention-gap.md)), a perfect Medium student in the walkthrough's 12-day course learns only 4 of 10 cards (the user estimated about 5; Task 6a measured 4). Options: (1) stop new cards `INTRO_CUTOFF_DAYS` (10) before `ends_at`; (2) scale `MIN_RETENTION_DAYS` with course length; (3) require courses of about 4 weeks or more. Details in [scheduler.md](scheduler.md#selecting-the-next-card).
 
 
 Still to do before real data (hosting later: Railway, [0023](decisions/0023-local-first.md)): script the per-tenant setup before a second customer, and script teacher token issuing.

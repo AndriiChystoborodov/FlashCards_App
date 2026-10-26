@@ -93,9 +93,9 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | S8 | learned card | never selected |
 | S36 | streak 2 with a short gap | card still due and selected again |
 | S37 | answer service computes `dueNotAfter` | end of the local day before `ends_at` in the student's timezone, including a timezone whose day differs from UTC |
-| S49 | new `due` after `dueNotAfter` and `dueNotAfter > now` | service clamps `due = dueNotAfter`; other fields unchanged |
+| S49 | new `due` after `dueNotAfter` and `dueNotAfter` after the end of today's local day | service clamps `due = dueNotAfter`; other fields unchanged |
 | S50 | new `due` before `dueNotAfter` | `due` unchanged |
-| S51 | `dueNotAfter <= now` (answer on the last day) | not clamped |
+| S51 | `dueNotAfter <= endOfLocalDay(now)` (answer on the last review day or later) | not clamped; the card is not selected again the same day (amended in Task 6, [decision 0026](decisions/0026-task6-scheduler-choices.md)) |
 | S52 | clamped card answered right + medium 5 days later, streak 2 | not learned (gap < 7) |
 | S38 | card introduced 5 days before `ends_at` | cannot become learned; progress shows it unlearned at `ends_at` |
 | S39 | removed student, tick | no card, no reminder, not completed at `ends_at` |
@@ -131,6 +131,20 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | S22 | course with zero assessment cards, new enrollment | `assessment_done_at` set in the same `next()` call; a new card is returned, no loop |
 | S23 | `due` just after local midnight in another timezone | selected on the right local day |
 | S20 | progress and class progress | learned / total, averages, exempt = 100 |
+
+### Scheduler core (Task 6a)
+
+`src/services/scheduler.test.ts` (test database, `FakeSlack`), `src/domain/quota.test.ts` (S24 to S27) and the new cases in `src/domain/localDay.test.ts`. Besides the S ids above:
+
+| case | expected |
+| --- | --- |
+| clamp regression | a card answered on the `dueNotAfter` day is asked once, then `next()` returns none (the old rule asked it 900 times in a simulation); S51 for both days |
+| concurrent `sendNext` (8 callers, 30 rounds, two shapes) | exactly one `sent`, one post, one open card; checked on real Postgres. Without `FOR UPDATE` the same test fails ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
+| first cards | `sendFirstCards` posts to every present `active` student with a Slack id, not to `exempt`, removed or unmatched ones; repeating sends nothing |
+| Slack failure after the claim | the error reaches the caller; the card stays open with no `message_ts` (6b-2 re-sends it) |
+| DM channel | cached in `users.slack_dm_channel` after the first post and used afterwards |
+| no real clock | the source of `scheduler.ts` has no `new Date()` or `Date.now` |
+| `localDaysThrough`, `startOfLocalDayOf` | walkthrough Monday to Friday is 12; local day not UTC day; DST day; at least 1 |
 
 ### Answer service (Task 5)
 
@@ -216,7 +230,7 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 
 ## Exit criteria per Roadmap task
 
-Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C23 and A1 to A9 pass. The `due` clamp (S37, S49 to S52) belongs to the answer service, Task 5.
+Each task ends with passing tests where it makes sense and a commit. Task 3 is done when C1 to C23 and A1 to A9 pass. The `due` clamp (S37, S49 to S52) belongs to the answer service, Task 5. Task 6 is split in three commits: 6a (core, built), 6b-1 (daily tick), 6b-2 (reminders, stale-claim recovery, cleanup); each S case has one owner in the table below ([decision 0026](decisions/0026-task6-scheduler-choices.md)).
 
 | task | test ids |
 | --- | --- |
@@ -224,11 +238,13 @@ Each task ends with passing tests where it makes sense and a commit. Task 3 is d
 | 3 Calculator | C1 to C23, A1 to A9 |
 | 4 Schema and repositories | D1 to D12 |
 | 5 Answer service | S2 to S4, S10, S13, S14, S31, S33, S34, S37, S41, S49 to S52; for S3, S10 and S34 only the service part (below) |
-| 6 Scheduler | S1, S5 to S9, S11, S12, S15 to S19; also S21 to S30, S32, S35, S36, S38, S39, S42 to S48, S53 |
-| 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40 |
+| 6a Scheduler core | S1, S3 and S4 (rest), S5 to S11, S15 to S17, S21 to S30 (S28: `finishEndedCourses` called directly), S34 (rest), S36, S38, S39 (course part), S42, S46, S53; first cards at start and enrollment; the S51 regression (answered on the last review day, not selected again); the S11 race on real Postgres |
+| 6b-1 Daily tick | S19; the tick calls `finishEndedCourses` at `ends_at`; a repeated tick sends nothing new; S39 (tick part) |
+| 6b-2 Reminders, recovery, cleanup | S12, S18, S32, S33, S35, S43, S44, S47, S48, S39 (no reminder for a removed student); reviews and re-enrollment ([decision 0026](decisions/0026-task6-scheduler-choices.md)) |
+| 7 REST API | R1 to R11; also R12 to R19, R21 to R29, S20, S40, S45 (class progress needs the progress endpoint) |
 | 8 Slack wiring | H1 to H9; also H10 |
 | 9 MCP | M1 to M4 |
 
-Split of S3, S10 and S34 ([decision 0025](decisions/0025-task5-answer-service-choices.md)): Task 5 checks the answer service part. S3: status `exempt`, score 100, `assessment_done_at` set, no card left open; "no cards" and "progress 100" are checked with `next()` (Task 6) and the progress endpoints (Task 7). S10: `sent_at` cleared and the review stored; "next card sent" is checked in Task 6. S34: one review for the delivery; "next card follows" is checked in Task 6. S16 (completion on the last learned card) is Task 6.
+Split of S3, S10 and S34 ([decision 0025](decisions/0025-task5-answer-service-choices.md)): Task 5 checks the answer service part. S3: status `exempt`, score 100, `assessment_done_at` set, no card left open; "no cards" and "progress 100" are checked with `next()` (Task 6) and the progress endpoints (Task 7). S10: `sent_at` cleared and the review stored; "next card sent" is checked in Task 6. S34: one review for the delivery; "next card follows" is checked in Task 6. S16 (completion on the last learned card) is Task 6a: `afterAnswer` in `src/services/scheduler.ts` calls `completeIfLearned` after every answer.
 
 Assignment reasons: S31, S33, S34, S41 are answer-service checks on a click (no review stored, no state change), like S13 and S14; S42 is `next()` selection; S20 is the progress endpoints and S40 is the removal route, both in the REST API.

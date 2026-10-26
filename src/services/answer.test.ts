@@ -346,13 +346,23 @@ describe('the due clamp', () => {
     expect((await getCardState(db, w.studentId, id))?.state.due).toEqual(new Date('2026-01-07T13:06:00Z'));
   });
 
-  it('S51: answering on the last day or later is not clamped', async () => {
+  it('S51: answering on or after the day of dueNotAfter is not clamped', async () => {
     const w = await world({ endsAt: new Date('2026-01-05T20:00:00Z') }); // limit is the end of 4 January, before now
     const id = w.normalIds[0]!;
     await send(w, id);
     const r = await answer(w, id, 0, 'medium');
     expect(r.status === 'answered' && r.clampedFrom).toBeNull();
     expect((await getCardState(db, w.studentId, id))?.state.due).toEqual(new Date('2026-01-07T13:06:00Z'));
+  });
+
+  it('S51: answered on the dueNotAfter day itself keeps the FSRS due (a clamp to today would re-select the card)', async () => {
+    const w = await world();
+    const id = w.normalIds[0]!;
+    w.clock.set(new Date('2026-01-15T08:00:00Z')); // Thursday 15 January 09:00 Zurich, the day of dueNotAfter
+    await send(w, id, { state: matureState(new Date('2026-01-14T08:00:00Z'), { correctStreak: 1, due: new Date('2026-01-15T22:59:59.999Z') }) });
+    const r = await answer(w, id, 0, 'medium');
+    expect(r.status === 'answered' && r.clampedFrom).toBeNull();
+    expect((await getCardState(db, w.studentId, id))!.state.due.getTime()).toBeGreaterThan(new Date('2026-01-15T22:59:59.999Z').getTime());
   });
 
   it('S52: a clamped card answered right and Medium 5 days later (streak 2) is not learned', async () => {

@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
-import type { CardState } from '../domain/calculator.js';
+import { newCardState, type CardState } from '../domain/calculator.js';
 import type { DbOrTx } from './client.js';
 import { columnsToCardState, cardStateToColumns } from './mappers.js';
 import { cardStates } from './schema.js';
@@ -62,4 +62,25 @@ export async function markLearned(db: DbOrTx, userId: string, flashcardIds: stri
     .update(cardStates)
     .set({ learnedAt: at })
     .where(and(eq(cardStates.userId, userId), inArray(cardStates.flashcardId, flashcardIds), isNull(cardStates.learnedAt)));
+}
+
+/**
+ * Opens the card for a delivery: one statement, so two callers cannot both win (scheduler.md "Idempotent send").
+ * A card without a row gets one (`newCardState`, `introduced_at = now`); a card with a row is claimed only while `sent_at` is null.
+ * Returns false when the card was already open.
+ */
+export async function claimCard(db: DbOrTx, userId: string, flashcardId: string, now: Date): Promise<boolean> {
+  const rows = await db
+    .insert(cardStates)
+    .values({ userId, flashcardId, ...cardStateToColumns(newCardState(now)), introducedAt: now, sentAt: now })
+    .onConflictDoUpdate({ target: [cardStates.userId, cardStates.flashcardId], set: { sentAt: now, messageChannel: null, messageTs: null }, setWhere: isNull(cardStates.sentAt) })
+    .returning({ flashcardId: cardStates.flashcardId });
+  return rows.length > 0;
+}
+
+export async function setCardMessage(db: DbOrTx, userId: string, flashcardId: string, channel: string, ts: string): Promise<void> {
+  await db
+    .update(cardStates)
+    .set({ messageChannel: channel, messageTs: ts })
+    .where(and(eq(cardStates.userId, userId), eq(cardStates.flashcardId, flashcardId)));
 }

@@ -39,6 +39,10 @@ Added during the implementation:
 | 16 | `endOfLocalDay` is the last millisecond of the local day; `dueNotAfter` is the start of the local day of `ends_at` minus 1 ms | `due <= endOfLocalDay` in scheduler.md; the day before `ends_at`, not `ends_at` minus 24 hours (a day is 23 or 25 hours across DST) |
 | 17 | Known limit: a zone whose DST gap covers local midnight (America/Sao_Paulo before 2019) gets a day start 1 hour early | no such zone is used; a `shortcut:` comment marks it |
 
+## Amendment (Task 6a, [decision 0026](0026-task6-scheduler-choices.md))
+
+The clamp condition in choice 16's neighbourhood changed: the service clamps only when `dueNotAfter > endOfLocalDay(now)`, not `dueNotAfter > now`. The first rule clamped a card answered on the `dueNotAfter` day to the end of that same day, so `next()` selected it again at once and kept doing so (a simulation reached streak 902). S51 now reads "answered on or after the day of `dueNotAfter`". The text above is left as it was written. Choice 12's open item (reviews of a re-created enrollment) is answered in 0026: they are deleted with the enrollment.
+
 ## Rejection reasons and the texts they map to
 
 Texts are the ones in [scheduler.md](../scheduler.md) and [integration.md](../slack/integration.md). One code per text.
