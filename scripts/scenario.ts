@@ -23,6 +23,8 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport, McpServer } from '@modelcontextprotocol/server';
 import { createRestClient } from '../src/mcp/client.js';
 import { registerTools } from '../src/mcp/tools.js';
+import { CALLER_HEADER, createRecorder } from '../src/trace/recorder.js';
+import { filesContaining, writeTrace as writeApiTraceFile } from '../src/trace/files.js';
 
 // End-to-end scenario (docs/scenario.md). Each task adds steps; a failed step stops the run.
 const url = env.DATABASE_URL;
@@ -36,14 +38,29 @@ const at = (iso: string) => new Date(iso);
 const clock = createControlledClock(at('2026-01-05T09:00:00Z')); // Monday 5 January 10:00 Zurich, walkthrough section 1
 const { db, pool } = createDb(url);
 const slack = new FakeSlack();
-const deps = { db, clock, tenantTimezone: env.TENANT_TIMEZONE, slack };
+// The API trace (decision 0032). SCENARIO_TRACE=off runs without any recorder, to show the steps and table deltas are the same either way.
+const rec = process.env.SCENARIO_TRACE === 'off' ? null : createRecorder({ clock });
+const deps = { db, clock, tenantTimezone: env.TENANT_TIMEZONE, slack: rec ? rec.slack(slack) : slack };
+const FAKE_SLACK_IDS = ['UANN', 'UBEA', 'UCY', 'UDEE', 'UEVE', 'UNOBODY'];
+const FAKE_EMAILS = ['tom@x.test', 'ann@x.test', 'bea@x.test', 'cy@x.test', 'dee@x.test', 'eve@x.test'];
+const BAD_TOKEN = 'x'.repeat(43);
+const secretValues = [env.SLACK_BOT_TOKEN, env.SLACK_APP_TOKEN, env.SLACK_SIGNING_SECRET, url, BAD_TOKEN].filter((v): v is string => !!v);
+if (rec) {
+  secretValues.forEach((v) => rec.redactor.addSecret(v));
+  FAKE_SLACK_IDS.forEach((i) => rec.redactor.addSlackId(i));
+  rec.redactor.label('tom@x.test', 'teacher');
+  FAKE_EMAILS.slice(1).forEach((e) => rec.redactor.label(e, 'student'));
+}
+const within = <T>(ctx: { origin: string; caller: string }, label: string, fn: () => Promise<T>, detail?: (r: T) => unknown): Promise<T> => (rec ? rec.within(ctx, label, fn, detail) : fn());
+const tick = () => within({ origin: 'tick', caller: 'tick' }, 'runTick', () => runTick(deps, TICK), (r) => r);
 // The REST API runs in this process on 127.0.0.1 and a random port; Tom's token comes from the same function as `npm run teacher:token`.
 slack.directory.set('ann@x.test', { slackId: 'UANN', tz: 'Europe/Zurich' });
 slack.directory.set('bea@x.test', { slackId: 'UBEA', tz: 'Europe/Zurich' });
 let api!: Api;
 let tomToken = '';
+const raw = (token: string | null, method: string, path: string, body?: unknown) => api.call(token, method, path, body, rec ? { [CALLER_HEADER]: 'scenario-rest' } : undefined);
 const rest = async (method: string, path: string, body?: unknown, expected = 200) => {
-  const r = await api.call(tomToken, method, path, body);
+  const r = await raw(tomToken, method, path, body);
   assert.equal(r.status, expected, `${method} ${path}: expected ${expected}, got ${r.status} ${JSON.stringify(r.body)}`);
   return r.body;
 };
@@ -51,12 +68,14 @@ const rest = async (method: string, path: string, body?: unknown, expected = 200
 /** The teacher's MCP tools (Task 9): the real tool module and REST client in this process, an in-memory MCP client, the REST API above. */
 async function connectMcp(token: string) {
   const server = new McpServer({ name: 'retain', version: 'scenario' });
-  registerTools(server, createRestClient({ baseUrl: api.url, token }));
+  let tool = 'none';
+  const fetchImpl: typeof fetch | undefined = rec ? (input, init) => fetch(input, { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), [CALLER_HEADER]: `mcp:${tool}` } }) : undefined;
+  registerTools(server, createRestClient({ baseUrl: api.url, token, ...(fetchImpl && { fetchImpl }) }));
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
   await server.connect(serverSide);
   const client = new Client({ name: 'scenario', version: '1' });
   await client.connect(clientSide);
-  const call = async (name: string, args: Record<string, unknown>) => (await client.callTool({ name, arguments: args })) as { isError?: boolean; content: { text: string }[] };
+  const call = async (name: string, args: Record<string, unknown>) => ((tool = name), await client.callTool({ name, arguments: args })) as { isError?: boolean; content: { text: string }[] };
   return {
     /** A successful tool call: the parsed JSON result. */
     async ok(name: string, args: Record<string, unknown> = {}) {
@@ -86,13 +105,17 @@ const nameOf = (id: string) => {
 // Ann's real answers, recorded where `reply` submits them; reports/scenario.json is built from these and the final database rows.
 const annAnswers: TraceInput['answers'] = [];
 const TRACE_FILE = 'reports/scenario.json';
+const API_TRACE_FILE = 'reports/trace.json';
+const OFF_FILE = 'reports/trace-off-steps.json';
 
 const state = async (userId: string, flashcardId: string) => (await getCardState(db, userId, flashcardId))!;
 const enrollmentOf = async (userId: string) => (await db.select().from(schema.enrollments).where(eq(schema.enrollments.userId, userId)))[0]!;
 const iso = (d: Date | null | undefined) => d?.toISOString();
 
 /** The student answers the open card the way a click would (with its message ts); then the scheduler sends what follows. */
-async function reply(userId: string, chosenOption: number | null, rating?: 'hard' | 'medium' | 'easy') {
+const reply = (userId: string, chosenOption: number | null, rating?: 'hard' | 'medium' | 'easy') =>
+  within({ origin: 'service', caller: 'scenario' }, 'student answer (submitAnswer + afterAnswer)', () => replyInner(userId, chosenOption, rating));
+async function replyInner(userId: string, chosenOption: number | null, rating?: 'hard' | 'medium' | 'easy') {
   const open = await getOpenCard(db, userId, ids.course);
   assert.ok(open, 'the student has no open card');
   const result = await submitAnswer(deps, { userId, flashcardId: open.flashcardId, chosenOption, ...(rating && { rating }), ...(open.messageTs && { messageTs: open.messageTs }) });
@@ -125,7 +148,7 @@ async function answerAll(userId: string) {
 /** A day of Ann's: the tick at 09:00 Zurich (08:00Z), then her Medium answers. The tick sends the first card, the answers send the rest. */
 async function tickDay(date: string) {
   clock.set(at(`${date}T08:00:00Z`));
-  const t = await runTick(deps, TICK);
+  const t = await tick();
   assert.equal(t.failed, 0);
   return answerAll(ids.ann);
 }
@@ -167,11 +190,12 @@ const steps: Step[] = [
     name: 'section 1 (MCP): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing',
     run: async () => {
       tomToken = await issueTeacherToken(db, { email: 'tom@x.test', fullName: 'Tom' });
-      api = await listen({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false, bindHost: '127.0.0.1' });
-      assert.equal((await api.call(null, 'GET', '/courses')).status, 401);
-      assert.equal((await api.call('x'.repeat(43), 'GET', '/courses')).status, 401);
+      rec?.redactor.addSecret(tomToken);
+      api = await listen({ ...deps, removedRetentionDays: env.REMOVED_RETENTION_DAYS, studentRoutesEnabled: false, bindHost: '127.0.0.1', ...(rec && { recorder: rec }) });
+      assert.equal((await raw(null, 'GET', '/courses')).status, 401);
+      assert.equal((await raw(BAD_TOKEN, 'GET', '/courses')).status, 401);
       mcp = await connectMcp(tomToken);
-      assert.match(await (await connectMcp('x'.repeat(43))).error('list_courses'), /^unauthorized: /);
+      assert.match(await (await connectMcp(BAD_TOKEN)).error('list_courses'), /^unauthorized: /);
       assert.equal((await mcp.ok('list_courses')).courses.length, 0);
       const course = await mcp.ok('create_course', { title: 'Security basics', material_url: 'https://wiki.example.com/security-policy', ends_at: '2026-01-16T22:59:00Z' }); // Friday 23:59 Zurich
       assert.equal(course.status, 'draft');
@@ -300,7 +324,7 @@ const steps: Step[] = [
     name: 'S19: Tuesday 08:59 Zurich: the tick sends nothing yet (SEND_HOUR 9)',
     run: async () => {
       clock.set(at('2026-01-06T07:59:00Z'));
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 0, resent: 0, failed: 0 });
       assert.equal(await getOpenCard(db, ids.ann, ids.course), null);
     },
   },
@@ -308,7 +332,7 @@ const steps: Step[] = [
     name: 'section 3: Tuesday 09:00 tick: A3 (due Tuesday 14:05) is sent first (Bea, exempt, gets nothing), then card-2 is introduced (quota 1); Ann answers both',
     run: async () => {
       clock.set(at('2026-01-06T08:00:00Z'));
-      assert.deepEqual(await runTick(deps, TICK), { sent: 1, resent: 0, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 1, resent: 0, failed: 0 });
       assert.equal((await getOpenCard(db, ids.ann, ids.course))?.flashcardId, A(3));
       clock.set(at('2026-01-06T08:05:00Z'));
       const a3 = await reply(ids.ann, 0, 'medium');
@@ -325,7 +349,7 @@ const steps: Step[] = [
     name: 'section 3: Wednesday 09:00 tick: A2 (due 14:03) before card-1 (due 14:06), then card-3; card-1 at 09:15 is clamped to the end of Thursday, not learned',
     run: async () => {
       clock.set(at('2026-01-07T08:00:00Z'));
-      assert.deepEqual(await runTick(deps, TICK), { sent: 1, resent: 0, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 1, resent: 0, failed: 0 });
       assert.equal((await getOpenCard(db, ids.ann, ids.course))?.flashcardId, A(2));
       clock.set(at('2026-01-07T08:05:00Z'));
       const a2 = await reply(ids.ann, 0, 'medium');
@@ -348,15 +372,15 @@ const steps: Step[] = [
     run: async () => {
       clock.set(at('2026-01-08T08:00:00Z'));
       slack.failNextPost = new Error('slack down');
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 1 });
+      assert.deepEqual(await tick(), { sent: 0, resent: 0, failed: 1 });
       const claim = await getOpenCard(db, ids.ann, ids.course);
       assert.ok(claim && claim.messageTs === null, 'the card is claimed without a message');
       const posts = slack.posted.length;
       clock.set(at('2026-01-08T08:05:00Z'));
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 0, resent: 0, failed: 0 });
       assert.equal(slack.posted.length, posts);
       clock.set(at('2026-01-08T08:10:00Z'));
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 1, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 0, resent: 1, failed: 0 });
       const after = await getOpenCard(db, ids.ann, ids.course);
       assert.equal(after?.sentAt?.getTime(), claim.sentAt?.getTime());
       assert.equal(after?.messageTs, slack.posted.at(-1)?.ts);
@@ -428,7 +452,7 @@ const steps: Step[] = [
     name: 'section 3: tick after ends_at: the course is finished, Ann is completed with her real progress, Bea stays exempt, nothing more is sent',
     run: async () => {
       clock.set(at('2026-01-16T23:00:00Z')); // ends_at was 22:59
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 });
+      assert.deepEqual(await tick(), { sent: 0, resent: 0, failed: 0 });
       const learned = (await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann))).filter((r) => r.learnedAt).length;
       const ann = await enrollmentOf(ids.ann);
       assert.equal(ann.status, 'completed');
@@ -439,7 +463,7 @@ const steps: Step[] = [
       const [c] = await db.select().from(schema.courses).where(eq(schema.courses.id, ids.course));
       assert.equal(c!.status, 'finished');
       assert.deepEqual(await sendNext(deps, ids.ann, ids.course), { status: 'none' });
-      assert.deepEqual(await runTick(deps, TICK), { sent: 0, resent: 0, failed: 0 }); // finished once, nothing left to do
+      assert.deepEqual(await tick(), { sent: 0, resent: 0, failed: 0 }); // finished once, nothing left to do
     },
   },
   {
@@ -496,7 +520,8 @@ const steps: Step[] = [
       const open = (await getOpenCard(db, eve, c.course_id))!;
 
       const routes: { pattern: RegExp; handler: (a: ClickArgs) => Promise<void> }[] = [];
-      registerHandlers({ action: (pattern, handler) => void routes.push({ pattern, handler }) }, deps);
+      const router = { action: (pattern: RegExp, handler: (a: ClickArgs) => Promise<void>) => void routes.push({ pattern, handler }) };
+      registerHandlers(rec ? rec.router(router) : router, deps);
       const shown: string[] = [];
       const click = async (slackId: string) => {
         const route = routes.find((r) => r.pattern.test('answer_dont_know'))!;
@@ -526,6 +551,16 @@ const pending = [
   '6 edge cases (reminders, removal and cleanup; stale-claim recovery runs above; the second click is checked above): Task 6b-2',
 ];
 
+/** reports/trace.json (decision 0032), or with SCENARIO_TRACE=off just the step deltas for the parity check. Then scans reports/ for every known secret and fake email. */
+async function writeApiTrace() {
+  await mkdir('reports', { recursive: true });
+  if (!rec) return void (await writeFile(OFF_FILE, `${JSON.stringify(stepDeltas, null, 1)}\n`));
+  await writeApiTraceFile(API_TRACE_FILE, rec.trace({ studentRoutesEnabled: false }), rec.redactor);
+  const leaks = await filesContaining('reports', [...secretValues, tomToken, ...FAKE_EMAILS, ...FAKE_SLACK_IDS]);
+  assert.deepEqual(leaks, [], `a secret, e-mail or Slack id reached these files in reports/ (not printed): ${leaks.join(', ')}`);
+  console.log(`api trace written to ${API_TRACE_FILE}`);
+}
+
 async function writeTrace() {
   const [course] = await db.select().from(schema.courses).where(eq(schema.courses.id, ids.course));
   const states = await db.select().from(schema.cardStates).where(eq(schema.cardStates.userId, ids.ann));
@@ -550,9 +585,36 @@ async function writeTrace() {
 }
 
 await rm(TRACE_FILE, { force: true }); // a failed run must not leave an old trace behind
+await rm(API_TRACE_FILE, { force: true });
+await rm('reports/trace.html', { force: true }); // rendered from a trace of an older run; `npm run trace:report` makes it again
+
+/** Row count of every table; zeros when the tables do not exist (before the reset step). */
+async function tableCounts(): Promise<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const t of TABLES) {
+    try {
+      out[t] = (await pool.query<{ n: number }>(`SELECT count(*)::int AS n FROM "${t}"`)).rows[0]!.n;
+    } catch {
+      out[t] = 0;
+    }
+  }
+  return out;
+}
+const delta = (before: Record<string, number>, after: Record<string, number>) =>
+  Object.fromEntries(TABLES.flatMap((t) => (after[t]! - before[t]! !== 0 ? [[t, after[t]! - before[t]!]] : [])));
+const stepDeltas: { name: string; delta: Record<string, number> }[] = [];
+const zeros = Object.fromEntries(TABLES.map((t) => [t, 0]));
+let counts = zeros;
+
 for (const [i, step] of steps.entries()) {
   try {
-    await step.run();
+    rec?.beginStep(i + 1, step.name);
+    const before = i === 0 ? zeros : counts; // the first step drops and rebuilds every table, so it starts from nothing
+    await (rec ? rec.run({ origin: 'scenario', caller: 'scenario' }, step.run) : step.run());
+    counts = await tableCounts();
+    const d = delta(before, counts);
+    rec?.endStep(d);
+    stepDeltas.push({ name: step.name, delta: d });
     console.log(`ok   ${i + 1} ${step.name}`);
   } catch (err) {
     console.error(`FAIL ${i + 1} ${step.name}: ${err instanceof Error ? err.message : String(err)}`);
@@ -563,5 +625,6 @@ for (const [i, step] of steps.entries()) {
 for (const p of pending) console.log(`pending ${p}`);
 console.log(`${steps.length} ok, ${pending.length} pending`);
 await writeTrace();
+await writeApiTrace();
 await api.close();
 await pool.end();

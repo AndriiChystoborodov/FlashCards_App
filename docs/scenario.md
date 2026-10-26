@@ -21,6 +21,29 @@ npm run scenario:report   # renders reports/scenario.html
 
 The page shows one row per card and one column per day (sent, answered with Hard/Medium/Easy, waiting, due clamped to the end of the course, learned), a chart of cards introduced and learned per day with the outcome marked, and a note on the exempt student. It is plain SVG with a legend and needs no JavaScript or network. `reports/` is git-ignored. If `reports/scenario.json` is missing or malformed the command exits 1 and says to run `npm run scenario`. Why and how: [decision 0030](decisions/0030-scenario-report.md).
 
+## API trace, baseline and compare
+
+```bash
+npm run scenario            # also writes reports/trace.json (every call, redacted) and checks reports/ for secrets
+npm run trace:report        # renders reports/trace.html
+npm run scenario:compare    # diffs reports/trace.json against docs/baseline/trace.json
+npm run scenario:compare -- --accept   # replaces the baseline on purpose; review the git diff and commit
+npm run scenario:parity     # runs the scenario twice (recorder off, then on) and compares the ok lines and table deltas
+```
+
+The final line of a good run is `23 ok, 1 pending`. What is recorded, how ids, emails, names, Slack ids and tokens become aliases, where the recorder hooks in, why REST bodies are stored as shapes in the baseline, and what ran against real Postgres versus what is only recorded by wrappers: [decision 0032](decisions/0032-api-trace-and-baseline.md).
+
+| part | what |
+| --- | --- |
+| `src/trace/recorder.ts` | `createRecorder({ clock })`: REST middleware (`ApiDeps.recorder`), `slack(port)`, `router(router)`, `within(ctx, label, fn)`, steps. The scenario sends the recorder-only header `x-trace-caller` (`mcp:<tool>`, `scenario-rest`); without a recorder the header is ignored |
+| `src/trace/redact.ts` | the redactor and the fail-closed scan |
+| `src/trace/schema.ts`, `compare.ts` | trace schema (zod), one-event-per-line serializer, baseline shape, diff |
+| `src/trace/render.ts`, `boundaries.ts` | the page: swimlanes per step, endpoint catalog against `docs/rest-api.md`, boundary marks B1 to B4 |
+| `scripts/trace-report.ts`, `trace-compare.ts`, `scenario-parity.ts` | the commands. Compare exits 0 (no differences), 1 (differences), 2 (a file is missing or unusable) |
+| `docs/baseline/trace.json` | the committed baseline (aliases only) |
+
+In the page, the Slack handlers and the tick call the services directly, not REST; the two student routes are shown as disabled in the scenario by design (`studentRoutesEnabled: false`). Tests: `src/trace/*.test.ts` (T-RED, T-REC, T-LEAK, T-RENDER, T-CAT, T-CMP).
+
 ## Parts
 
 | file | what |

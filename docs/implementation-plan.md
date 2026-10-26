@@ -17,7 +17,8 @@ Design phase output, 2026-10-24. Tasks 1 to 5, 6a, 6b-1, 7, 8a and 9 are built (
 | Worked example | [walkthrough.md](walkthrough.md) |
 | Test plan | [test-plan.md](test-plan.md) |
 | End-to-end scenario | [scenario.md](scenario.md) |
-| Decisions | [decisions/](decisions/) 0002 to 0031 |
+| API trace and baseline | [scenario.md](scenario.md#api-trace-baseline-and-compare), [decision 0032](decisions/0032-api-trace-and-baseline.md) |
+| Decisions | [decisions/](decisions/) 0002 to 0032 |
 
 `data-model-and-api.md` was the old draft. It is superseded by data-model.md and rest-api.md and is deleted in the working tree (still in git history).
 

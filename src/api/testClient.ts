@@ -5,7 +5,7 @@ import { startServer } from './server.js';
 export interface Api {
   url: string;
   close(): Promise<void>;
-  call(token: string | null, method: string, path: string, body?: unknown): Promise<{ status: number; body: any }>;
+  call(token: string | null, method: string, path: string, body?: unknown, headers?: Record<string, string>): Promise<{ status: number; body: any }>;
 }
 
 export async function listen(deps: ApiDeps): Promise<Api> {
@@ -14,10 +14,10 @@ export async function listen(deps: ApiDeps): Promise<Api> {
   return {
     url,
     close: s.close,
-    async call(token, method, path, body) {
+    async call(token, method, path, body, headers) {
       const res = await fetch(url + path, {
         method,
-        headers: { ...(token && { authorization: `Bearer ${token}` }), ...(body !== undefined && { 'content-type': 'application/json' }) },
+        headers: { ...headers, ...(token && { authorization: `Bearer ${token}` }), ...(body !== undefined && { 'content-type': 'application/json' }) },
         ...(body !== undefined && { body: typeof body === 'string' ? body : JSON.stringify(body) }),
       });
       const text = await res.text();

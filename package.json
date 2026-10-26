@@ -17,6 +17,9 @@
     "db:reset": "tsx src/db/reset.ts",
     "scenario": "tsx scripts/scenario.ts",
     "scenario:report": "tsx scripts/scenario-report.ts",
+    "trace:report": "tsx scripts/trace-report.ts",
+    "scenario:compare": "tsx scripts/trace-compare.ts",
+    "scenario:parity": "tsx scripts/scenario-parity.ts",
     "teacher:token": "tsx scripts/issue-teacher-token.ts",
     "api": "tsx scripts/dev-api.ts",
     "demo:seed": "tsx scripts/demo-seed.ts"

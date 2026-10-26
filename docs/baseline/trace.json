@@ -1,0 +1,299 @@
+{
+ "version": 1,
+ "meta": {"studentRoutesEnabled":false,"baseline":true},
+ "steps": [
+  {
+   "n": 1,
+   "name": "reset: database rebuilt and migrated",
+   "tableDelta": {},
+   "events": []
+  },
+  {
+   "n": 2,
+   "name": "schema: every schema table exists and is empty",
+   "tableDelta": {},
+   "events": []
+  },
+  {
+   "n": 3,
+   "name": "clock: advances by days",
+   "tableDelta": {},
+   "events": []
+  },
+  {
+   "n": 4,
+   "name": "section 1 (MCP): Tom creates the course, adds 10 cards (3 assessment), enrolls Ann and Bea; a draft course sends nothing",
+   "tableDelta": {"courses":1,"enrollments":2,"flashcards":10,"users":3},
+   "events": [
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"GET","template":null,"path":"/courses","status":401,"req":"null","res":{"error":{"code":"string","message":"string"}}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"GET","template":null,"path":"/courses","status":401,"req":"null","res":{"error":{"code":"string","message":"string"}}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:list_courses","kind":"rest","method":"GET","template":null,"path":"/courses","status":401,"req":"null","res":{"error":{"code":"string","message":"string"}}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:list_courses","kind":"rest","method":"GET","template":"/courses","path":"/courses","status":200,"req":"null","res":{"courses":[]}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:create_course","kind":"rest","method":"POST","template":"/courses","path":"/courses","status":201,"req":{"title":"string","material_url":"string","ends_at":"string"},"res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"null","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:add_flashcards","kind":"rest","method":"POST","template":"/courses/:courseId/flashcards","path":"/courses/course-1/flashcards","status":201,"req":{"flashcards":[{"question":"string","options":["string"],"correct_option":"number","is_assessment":"boolean"}]},"res":{"flashcards":[{"flashcard_id":"string","position":"number"}]}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:enroll_students","kind":"rest","method":"POST","template":"/courses/:courseId/students","path":"/courses/course-1/students","status":200,"req":{"students":[{"email":"string","name":"string"}]},"res":{"students":[{"email":"string","enrolled":"boolean","slack_matched":"boolean","restored":"boolean"}]}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:enroll_students","kind":"slack","origin":"rest","call":"lookupEmail","req":{"email":"student-1"},"res":{"slackId":"U-1","tz":"Europe/Zurich"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:enroll_students","kind":"slack","origin":"rest","call":"lookupEmail","req":{"email":"student-2"},"res":{"slackId":"U-2","tz":"Europe/Zurich"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:get_course","kind":"rest","method":"GET","template":"/courses/:courseId","path":"/courses/course-1","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"null","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:list_students","kind":"rest","method":"GET","template":"/courses/:courseId/students","path":"/courses/course-1/students","status":200,"req":"null","res":{"students":[{"student_id":"string","email":"string","name":"string","status":"string","enrolled_at":"string","assessment_done_at":"null","slack_matched":"boolean"}]}}
+   ]
+  },
+  {
+   "n": 5,
+   "name": "section 1 (MCP): start_course (with confirmed) sends the start message and the first assessment card (A1) to Ann and Bea at once; a second start is refused",
+   "tableDelta": {"card_states":2},
+   "events": [
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:list_flashcards","kind":"rest","method":"GET","template":"/courses/:courseId/flashcards","path":"/courses/course-1/flashcards","status":200,"req":"null","res":{"flashcards":[{"flashcard_id":"string","question":"string","options":["string"],"correct_option":"number","material_url":"null","is_assessment":"boolean","position":"number"}]}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"rest","method":"POST","template":"/courses/:courseId/start","path":"/courses/course-1/start","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"string","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-1","text":"A new course has started for you. Your first card follows.","buttons":[]},"res":{"channel":"D-U-1","ts":"1.000100"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-2","text":"A new course has started for you. Your first card follows.","buttons":[]},"res":{"channel":"D-U-2","ts":"2.000100"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-1","text":"Q: Q1\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"3.000100"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-2","text":"Q: Q1\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-2","ts":"4.000100"}},
+    {"seq":0,"t":"2026-01-05T09:00:00.000Z","caller":"mcp:start_course","kind":"rest","method":"POST","template":"/courses/:courseId/start","path":"/courses/course-1/start","status":409,"req":"null","res":{"error":{"code":"string","message":"string"}}}
+   ]
+  },
+  {
+   "n": 6,
+   "name": "section 2: A1 right + Easy at 14:00; review stored, A2 follows at once, nothing evaluated yet",
+   "tableDelta": {"card_states":1,"reviews":1},
+   "events": [
+    {"seq":0,"t":"2026-01-05T13:00:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:00:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q2\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"5.000100"}}
+   ]
+  },
+  {
+   "n": 7,
+   "name": "section 2: A2 right + Medium at 14:03: due in 2 days, streak 1, A3 follows",
+   "tableDelta": {"card_states":1,"reviews":1},
+   "events": [
+    {"seq":0,"t":"2026-01-05T13:03:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:03:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"6.000100"}}
+   ]
+  },
+  {
+   "n": 8,
+   "name": "section 2: A3 \"Don't know\" at 14:05 is the last assessment card: 33%, not exempt, only A1 learned, card-1 follows (new, quota 1)",
+   "tableDelta": {"card_states":1,"reviews":1},
+   "events": [
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q4\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"7.000100"}}
+   ]
+  },
+  {
+   "n": 9,
+   "name": "section 6: a second click on A3 is refused (not open); still one review, assessment not evaluated again",
+   "tableDelta": {},
+   "events": []
+  },
+  {
+   "n": 10,
+   "name": "section 2: Bea answers all three right + Easy: exempt, 100%, the \"already know\" message, no card left open",
+   "tableDelta": {"card_states":2,"reviews":3},
+   "events": [
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-2","text":"Q: Q2\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-2","ts":"8.000100"}},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-2","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-2","ts":"9.000100"}},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-05T13:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-2","text":"You already know this material, so there are no more cards for this course.","buttons":[]},"res":{"channel":"D-U-2","ts":"10.000100"}}
+   ]
+  },
+  {
+   "n": 11,
+   "name": "section 3: card-1 Monday 14:06 Medium: due Wednesday 14:06, streak 1; no second new card today (quota used)",
+   "tableDelta": {"reviews":1},
+   "events": [
+    {"seq":0,"t":"2026-01-05T13:06:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 12,
+   "name": "S19: Tuesday 08:59 Zurich: the tick sends nothing yet (SEND_HOUR 9)",
+   "tableDelta": {},
+   "events": [
+    {"seq":0,"t":"2026-01-06T07:59:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":0}}
+   ]
+  },
+  {
+   "n": 13,
+   "name": "section 3: Tuesday 09:00 tick: A3 (due Tuesday 14:05) is sent first (Bea, exempt, gets nothing), then card-2 is introduced (quota 1); Ann answers both",
+   "tableDelta": {"card_states":1,"reviews":2},
+   "events": [
+    {"seq":0,"t":"2026-01-06T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-06T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"11.000100"}},
+    {"seq":0,"t":"2026-01-06T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-06T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q5\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"12.000100"}},
+    {"seq":0,"t":"2026-01-06T08:10:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 14,
+   "name": "section 3: Wednesday 09:00 tick: A2 (due 14:03) before card-1 (due 14:06), then card-3; card-1 at 09:15 is clamped to the end of Thursday, not learned",
+   "tableDelta": {"card_states":1,"reviews":3},
+   "events": [
+    {"seq":0,"t":"2026-01-07T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-07T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q2\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"13.000100"}},
+    {"seq":0,"t":"2026-01-07T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-07T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q4\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"14.000100"}},
+    {"seq":0,"t":"2026-01-07T08:15:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-07T08:15:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q6\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"15.000100"}},
+    {"seq":0,"t":"2026-01-07T08:20:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 15,
+   "name": "S12: Thursday 8 January 09:00 tick: Slack fails after the claim; 5 minutes later nothing; at 10 minutes the same delivery is posted again",
+   "tableDelta": {},
+   "events": [
+    {"seq":0,"t":"2026-01-08T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":1}},
+    {"seq":0,"t":"2026-01-08T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":null,"error":"Error"},
+    {"seq":0,"t":"2026-01-08T08:05:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-08T08:10:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":1,"failed":0}},
+    {"seq":0,"t":"2026-01-08T08:10:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"16.000100"}}
+   ]
+  },
+  {
+   "n": 16,
+   "name": "section 3: Thursday 8 to Sunday 11 January: one new card per day until all 7 are introduced (Thursday continues after the recovery)",
+   "tableDelta": {"card_states":4,"reviews":9},
+   "events": [
+    {"seq":0,"t":"2026-01-08T08:15:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-08T08:15:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q5\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"17.000100"}},
+    {"seq":0,"t":"2026-01-08T08:20:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-08T08:20:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q7\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"18.000100"}},
+    {"seq":0,"t":"2026-01-08T08:25:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-09T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-09T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q6\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"19.000100"}},
+    {"seq":0,"t":"2026-01-09T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-09T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q8\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"20.000100"}},
+    {"seq":0,"t":"2026-01-09T08:10:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-10T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-10T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q7\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"21.000100"}},
+    {"seq":0,"t":"2026-01-10T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-10T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q9\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"22.000100"}},
+    {"seq":0,"t":"2026-01-10T08:10:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-11T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-11T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q8\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"23.000100"}},
+    {"seq":0,"t":"2026-01-11T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-11T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q10\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"24.000100"}},
+    {"seq":0,"t":"2026-01-11T08:10:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 17,
+   "name": "section 3: Monday 12 to Wednesday 14 January: reviews only, no new cards, nothing asked twice in a day",
+   "tableDelta": {"reviews":3},
+   "events": [
+    {"seq":0,"t":"2026-01-12T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-12T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q9\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"25.000100"}},
+    {"seq":0,"t":"2026-01-12T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-13T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-13T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q10\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"26.000100"}},
+    {"seq":0,"t":"2026-01-13T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-14T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-14T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"27.000100"}},
+    {"seq":0,"t":"2026-01-14T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 18,
+   "name": "section 3: Thursday 15 January: card-1 is asked again, gap 8 days, learned; no card is asked twice on the last review day (clamp fix)",
+   "tableDelta": {"reviews":9},
+   "events": [
+    {"seq":0,"t":"2026-01-15T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":1,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-15T08:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"Q: Q2\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"28.000100"}},
+    {"seq":0,"t":"2026-01-15T08:05:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:05:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q3\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"29.000100"}},
+    {"seq":0,"t":"2026-01-15T08:10:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:10:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q4\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"30.000100"}},
+    {"seq":0,"t":"2026-01-15T08:15:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:15:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q5\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"31.000100"}},
+    {"seq":0,"t":"2026-01-15T08:20:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:20:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q6\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"32.000100"}},
+    {"seq":0,"t":"2026-01-15T08:25:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:25:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q7\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"33.000100"}},
+    {"seq":0,"t":"2026-01-15T08:30:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:30:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q8\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"34.000100"}},
+    {"seq":0,"t":"2026-01-15T08:35:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:35:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q9\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"35.000100"}},
+    {"seq":0,"t":"2026-01-15T08:40:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"},
+    {"seq":0,"t":"2026-01-15T08:40:00.000Z","caller":"scenario","kind":"slack","origin":"service","call":"postCard","req":{"to":"D-U-1","text":"Q: Q10\n1. right\n2. x\n3. y","buttons":["answer_1","answer_2","answer_3","answer_dont_know"]},"res":{"channel":"D-U-1","ts":"36.000100"}},
+    {"seq":0,"t":"2026-01-15T08:45:00.000Z","caller":"scenario","kind":"entry","origin":"service","label":"student answer (submitAnswer + afterAnswer)"}
+   ]
+  },
+  {
+   "n": 19,
+   "name": "section 4 (MCP): progress after Thursday 15 January: Ann learned/total, Bea exempt at 100, class average, per-card list, nobody waiting",
+   "tableDelta": {},
+   "events": [
+    {"seq":0,"t":"2026-01-15T08:45:00.000Z","caller":"mcp:get_class_progress","kind":"rest","method":"GET","template":"/courses/:courseId/progress","path":"/courses/course-1/progress","status":200,"req":"null","res":{"course_id":"string","class_progress":"number","students":[{"student_id":"string","name":"string","status":"string","progress":"number","learned":"number","total":"number","assessment_done":"boolean","waiting_since":"null"}]}},
+    {"seq":0,"t":"2026-01-15T08:45:00.000Z","caller":"mcp:get_student_progress","kind":"rest","method":"GET","template":"/courses/:courseId/students/:studentId/progress","path":"/courses/course-1/students/user-id-1/progress","status":200,"req":"null","res":{"course_id":"string","student_id":"string","name":"string","status":"string","progress":"number","learned":"number","total":"number","assessment_done":"boolean","waiting_since":"null","cards":[{"flashcard_id":"string","question":"string","learned":"boolean","correct_streak":"number","due":"string","last_answer_correct":"boolean"}]}}
+   ]
+  },
+  {
+   "n": 20,
+   "name": "section 3: Friday 16 January: nothing is due any more",
+   "tableDelta": {},
+   "events": [
+    {"seq":0,"t":"2026-01-16T08:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":0}}
+   ]
+  },
+  {
+   "n": 21,
+   "name": "section 3: tick after ends_at: the course is finished, Ann is completed with her real progress, Bea stays exempt, nothing more is sent",
+   "tableDelta": {},
+   "events": [
+    {"seq":0,"t":"2026-01-16T23:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":0}},
+    {"seq":0,"t":"2026-01-16T23:00:00.000Z","caller":"tick","kind":"slack","origin":"tick","call":"postCard","req":{"to":"D-U-1","text":"The course has ended. Your final progress is 40%.","buttons":[]},"res":{"channel":"D-U-1","ts":"37.000100"}},
+    {"seq":0,"t":"2026-01-16T23:00:00.000Z","caller":"tick","kind":"entry","origin":"tick","label":"runTick","detail":{"sent":0,"resent":0,"failed":0}}
+   ]
+  },
+  {
+   "n": 22,
+   "name": "section 5 and 6 (MCP): in a second course Tom removes Dee (open card replaced with \"expired\", idempotent) and stops the course (Cy completed, 0%, ended message)",
+   "tableDelta": {"card_states":2,"courses":1,"enrollments":2,"flashcards":2,"users":2},
+   "events": [
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:create_course","kind":"rest","method":"POST","template":"/courses","path":"/courses","status":201,"req":{"title":"string","material_url":"string","ends_at":"string"},"res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"null","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:add_flashcards","kind":"rest","method":"POST","template":"/courses/:courseId/flashcards","path":"/courses/course-2/flashcards","status":201,"req":{"flashcards":[{"question":"string","options":["string"],"correct_option":"number","is_assessment":"boolean"}]},"res":{"flashcards":[{"flashcard_id":"string","position":"number"}]}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:enroll_students","kind":"rest","method":"POST","template":"/courses/:courseId/students","path":"/courses/course-2/students","status":200,"req":{"students":[{"email":"string","name":"string"}]},"res":{"students":[{"email":"string","enrolled":"boolean","slack_matched":"boolean","restored":"boolean"}]}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:enroll_students","kind":"slack","origin":"rest","call":"lookupEmail","req":{"email":"student-3"},"res":{"slackId":"U-3","tz":"Europe/Zurich"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:enroll_students","kind":"slack","origin":"rest","call":"lookupEmail","req":{"email":"student-4"},"res":{"slackId":"U-4","tz":"Europe/Zurich"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:start_course","kind":"rest","method":"POST","template":"/courses/:courseId/start","path":"/courses/course-2/start","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"string","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-3","text":"A new course has started for you. Your first card follows.","buttons":[]},"res":{"channel":"D-U-3","ts":"38.000100"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-4","text":"A new course has started for you. Your first card follows.","buttons":[]},"res":{"channel":"D-U-4","ts":"39.000100"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-3","text":"Q: P1\n1. right\n2. x","buttons":["answer_1","answer_2","answer_dont_know"]},"res":{"channel":"D-U-3","ts":"40.000100"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:start_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-4","text":"Q: P1\n1. right\n2. x","buttons":["answer_1","answer_2","answer_dont_know"]},"res":{"channel":"D-U-4","ts":"41.000100"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:list_students","kind":"rest","method":"GET","template":"/courses/:courseId/students","path":"/courses/course-2/students","status":200,"req":"null","res":{"students":[{"student_id":"string","email":"string","name":"string","status":"string","enrolled_at":"string","assessment_done_at":"null","slack_matched":"boolean"}]}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:remove_student","kind":"rest","method":"DELETE","template":"/courses/:courseId/students/:studentId","path":"/courses/course-2/students/user-id-4","status":204,"req":"null","res":"null"},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:remove_student","kind":"slack","origin":"rest","call":"replaceMessage","req":{"channel":"D-U-4","ts":"41.000100","text":"expired","buttons":[]},"res":null},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:remove_student","kind":"rest","method":"DELETE","template":"/courses/:courseId/students/:studentId","path":"/courses/course-2/students/user-id-4","status":204,"req":"null","res":"null"},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:get_course","kind":"rest","method":"GET","template":"/courses/:courseId","path":"/courses/course-2","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"string","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:get_class_progress","kind":"rest","method":"GET","template":"/courses/:courseId/progress","path":"/courses/course-2/progress","status":200,"req":"null","res":{"course_id":"string","class_progress":"number","students":[{"student_id":"string","name":"string","status":"string","progress":"number","learned":"number","total":"number","assessment_done":"boolean","waiting_since":"string"}]}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:stop_course","kind":"rest","method":"POST","template":"/courses/:courseId/stop","path":"/courses/course-2/stop","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"string","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:stop_course","kind":"slack","origin":"rest","call":"replaceMessage","req":{"channel":"D-U-3","ts":"40.000100","text":"The course is over.","buttons":[]},"res":null},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:stop_course","kind":"slack","origin":"rest","call":"postCard","req":{"to":"D-U-3","text":"The course has ended. Your final progress is 0%.","buttons":[]},"res":{"channel":"D-U-3","ts":"42.000100"}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:list_students","kind":"rest","method":"GET","template":"/courses/:courseId/students","path":"/courses/course-2/students","status":200,"req":"null","res":{"students":[{"student_id":"string","email":"string","name":"string","status":"string","enrolled_at":"string","assessment_done_at":"null","slack_matched":"boolean"}]}},
+    {"seq":0,"t":"2026-01-17T09:00:00.000Z","caller":"mcp:stop_course","kind":"rest","method":"POST","template":"/courses/:courseId/stop","path":"/courses/course-2/stop","status":409,"req":"null","res":{"error":{"code":"string","message":"string"}}}
+   ]
+  },
+  {
+   "n": 23,
+   "name": "Slack handlers (Task 8, fake client): Eve clicks through the Bolt handlers: \"Don't know\" stores one review and sends the next card, a second click is \"already answered\", a Slack user nobody enrolled is \"not enrolled\"",
+   "tableDelta": {"card_states":2,"courses":1,"enrollments":1,"flashcards":2,"reviews":1,"users":1},
+   "events": [
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"POST","template":"/courses","path":"/courses","status":201,"req":{"title":"string","material_url":"string","ends_at":"string"},"res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"null","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"POST","template":"/courses/:courseId/flashcards","path":"/courses/course-3/flashcards","status":201,"req":{"flashcards":[{"question":"string","options":["string"],"correct_option":"number","is_assessment":"boolean"}]},"res":{"flashcards":[{"flashcard_id":"string","position":"number"}]}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"POST","template":"/courses/:courseId/students","path":"/courses/course-3/students","status":200,"req":{"students":[{"email":"string","name":"string"}]},"res":{"students":[{"email":"string","enrolled":"boolean","slack_matched":"boolean","restored":"boolean"}]}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"slack","origin":"rest","call":"lookupEmail","req":{"email":"student-5"},"res":{"slackId":"U-5","tz":"Europe/Zurich"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"POST","template":"/courses/:courseId/start","path":"/courses/course-3/start","status":200,"req":"null","res":{"course_id":"string","title":"string","material_url":"string","status":"string","assessment_pass_threshold":"number","ends_at":"string","scheduled_start_at":"null","starts_at":"string","card_count":"number","assessment_card_count":"number","student_count":"number"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-5","text":"A new course has started for you. Your first card follows.","buttons":[]},"res":{"channel":"D-U-5","ts":"43.000100"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"slack","origin":"rest","call":"postCard","req":{"to":"U-5","text":"Q: W1\n1. right\n2. x","buttons":["answer_1","answer_2","answer_dont_know"]},"res":{"channel":"D-U-5","ts":"44.000100"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"scenario-rest","kind":"rest","method":"GET","template":"/courses/:courseId/students","path":"/courses/course-3/students","status":200,"req":"null","res":{"students":[{"student_id":"string","email":"string","name":"string","status":"string","enrolled_at":"string","assessment_done_at":"null","slack_matched":"boolean"}]}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"slack-handler","kind":"click","actionId":"answer_dont_know","user":"U-5","outcome":"wrong"},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"slack-handler","kind":"slack","origin":"click","call":"postCard","req":{"to":"D-U-5","text":"Q: W2\n1. right\n2. x","buttons":["answer_1","answer_2","answer_dont_know"]},"res":{"channel":"D-U-5","ts":"45.000100"}},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"slack-handler","kind":"click","actionId":"answer_dont_know","user":"U-5","outcome":"rejected:not_open"},
+    {"seq":0,"t":"2026-01-19T09:00:00.000Z","caller":"slack-handler","kind":"click","actionId":"answer_dont_know","user":"U-6","outcome":"rejected:not_enrolled"}
+   ]
+  }
+ ]
+}

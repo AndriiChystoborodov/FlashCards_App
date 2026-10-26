@@ -119,6 +119,8 @@ Why the clamp and the 7-day gap: [fsrs-calculator.md](fsrs-calculator.md) and [d
 
 To see the whole 12-day run as one picture, run `npm run scenario` and then `npm run scenario:report`, and open `reports/scenario.html`. It shows each card on each day (sent, answered Hard/Medium/Easy, waiting, clamped, learned), cards introduced and learned per day with the 40% outcome, and the exempt student. Details: [scenario.md](scenario.md#report).
 
+To see who called what (REST calls, Slack posts, button clicks, the tick, the rows each step changed), run `npm run scenario`, then `npm run trace:report`, and open `reports/trace.html`. It shows that the Slack handlers and the tick call the services directly, not REST, and marks the arrows that would become network calls in a cloud deployment. `npm run scenario:compare` diffs a run against the committed baseline `docs/baseline/trace.json`. Details: [scenario.md](scenario.md#api-trace-baseline-and-compare).
+
 ## 5. File map
 
 | Where | What lives there |
@@ -131,7 +133,8 @@ To see the whole 12-day run as one picture, run `npm run scenario` and then `npm
 | `src/services/` | the use cases: answer, scheduler, tick, courses, enrollment, progress |
 | `src/api/` | Express app, token auth, zod schemas, teacher and student routers |
 | `src/slack/` | port, real adapter, Bolt handlers, card messages, fake |
-| `scripts/` | `scenario.ts` (end-to-end check), `scenario-report.ts` (HTML picture of it), `demo-seed.ts`, `issue-teacher-token.ts`, `dev-api.ts` |
+| `scripts/` | `scenario.ts` (end-to-end check), `scenario-report.ts` (HTML picture of it), `trace-report.ts` and `trace-compare.ts` (API trace page and baseline diff), `demo-seed.ts`, `issue-teacher-token.ts`, `dev-api.ts` |
+| `src/trace/` | the scenario's API recorder, redactor, viewer and baseline compare (decision 0032) |
 | `drizzle/` | generated SQL migrations |
 | `docker-compose.yml` | local Postgres |
 | `docs/` | design docs ([implementation-plan.md](implementation-plan.md) is the index) and `decisions/` |
