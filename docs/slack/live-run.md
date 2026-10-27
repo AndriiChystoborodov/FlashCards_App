@@ -59,3 +59,14 @@ The 3-second ack on a real connection, button rendering with 10 options, a doubl
 **Stop `npm run dev` (Ctrl+C) before `npm run scenario` or `npm run db:reset`: both wipe `retain_dev` while the server holds connections and a tick may be mid-pass.** To start over: stop `npm run dev`, `npm run db:reset`, `npm run dev`, `npm run demo:seed -- ...`. Old messages in Slack stay; a click on one says "This card was already answered."
 
 `SLACK_MODE=http` is not built: `npm run dev` stops at startup with that message.
+
+## Image card spike
+
+Decision [0033](../decisions/0033-image-cards.md), Stage A. It checks what only a real workspace can answer; it needs no database and changes no production code.
+
+1. Add the bot scope `files:write` (api.slack.com/apps, _OAuth & Permissions_; the manifest [manifest.dev.yaml](manifest.dev.yaml) already lists it) and **reinstall the app**. Slack gives the same `xoxb-` token again or a new one: put the current one in `.env`.
+2. **Stop `npm run dev`** (two Socket Mode connections split the clicks).
+3. Run `npm run spike:image -- --email <your Slack email>`. Optional: `--email2 <another user>` posts the same file id to them; `--share` shares the upload to your DM channel instead of leaving it private (try it only if the private image does not show).
+4. Expect 4 DMs (short, long, Russian, German): an image with the question, the options as text, and the buttons 1, 2, 3, Don't know. Click one answer on each card. The script logs which replacement it used (card 1 and 2: text only, card 3: text plus the same image, card 4: `chat.update` text only).
+5. Tell Claude: do the images show; did the image disappear or stay after each click (expected: gone on cards 1, 2 and 4, kept on card 3); the printed timings; the log lines; whether user 2 sees the image (or `reuse across users: unverified`).
+

@@ -22,10 +22,15 @@
     "scenario:parity": "tsx scripts/scenario-parity.ts",
     "teacher:token": "tsx scripts/issue-teacher-token.ts",
     "api": "tsx scripts/dev-api.ts",
-    "demo:seed": "tsx scripts/demo-seed.ts"
+    "demo:seed": "tsx scripts/demo-seed.ts",
+    "render:samples": "tsx scripts/render-samples.ts",
+    "font:vendor": "tsx scripts/vendor-font.ts",
+    "font:glyphs": "tsx scripts/gen-glyphs.ts",
+    "spike:image": "tsx scripts/image-spike.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.4.0",
+    "@napi-rs/canvas": "1.0.13",
     "@slack/bolt": "5.1.0",
     "dotenv": "18.0.9",
     "drizzle-orm": "0.45.4",
@@ -40,6 +45,7 @@
     "@types/node": "26.6.5",
     "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",
+    "fontkit": "2.0.4",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vitest": "5.0.5"

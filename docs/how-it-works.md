@@ -134,6 +134,7 @@ To see who called what (REST calls, Slack posts, button clicks, the tick, the ro
 | `src/api/` | Express app, token auth, zod schemas, teacher and student routers |
 | `src/slack/` | port, real adapter, Bolt handlers, card messages, fake |
 | `scripts/` | `scenario.ts` (end-to-end check), `scenario-report.ts` (HTML picture of it), `trace-report.ts` and `trace-compare.ts` (API trace page and baseline diff), `demo-seed.ts`, `issue-teacher-token.ts`, `dev-api.ts` |
+| `src/render/` | draws a question as a PNG for image cards (Stage A of Task 8b: not yet used by the sending path; decision 0033) |
 | `src/trace/` | the scenario's API recorder, redactor, viewer and baseline compare (decision 0032) |
 | `drizzle/` | generated SQL migrations |
 | `docker-compose.yml` | local Postgres |

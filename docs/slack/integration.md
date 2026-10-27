@@ -110,6 +110,16 @@ Outcome messages:
 - `src/index.ts` starts `startServer` (host `HOST`, port `PORT`), then Bolt, then `startTick`. `SLACK_MODE=http` stops at startup with "not built yet". The spike keeps its own handlers (`spikeHandlers.ts`, `npm run spike`).
 - Live run: [live-run.md](live-run.md).
 
+## Image cards (planned, Stage A built)
+
+Decision [0033](../decisions/0033-image-cards.md). A card is sent as a generated image of the question; the options stay numbered text under it and the buttons do not change. **Only Stage A exists** (renderer, vendored font, samples, spike script). The REST 500-character limit, the port change (`postCard` taking the image), the scheduler and the trace changes are Stage B and wait for the user's go-ahead after the spike.
+
+- Renderer: `src/render/` (`renderCard(question)` gives `{png, width, height, text, fontSize, lines}` or `{ok: false, code}`; codes `question_too_long`, `unsupported_character`, `empty_question`). 1200x630, Inter, 28 to 64 px, 500 characters.
+- Planned message: blocks `image` (`slack_file: {id}`, `alt_text` = the sanitized question), `section` (options), `actions` (unchanged); top-level `text` = question and options. The image is uploaded with `filesUploadV2` (no `channel_id`, so private) before the post; scope `files:write`, reinstall the app after adding it.
+- A failed upload throws before anything is posted, so the claim stays and the stale-claim recovery re-posts (decision 0027). A render error on an old card falls back to the text card (Stage B choice) so a claim never loops.
+- Documented by Slack and the installed types: `filesUploadV2` = `files.getUploadURLExternal`, POST, `files.completeUploadExternal`; the id is at `res.files[0].files[0].id`; without `channel_id` the file is private; `ImageBlock` takes `slack_file {id | url}` or `image_url`, `alt_text` up to 2,000 characters, PNG, JPG, GIF; "the user posting the blocks must have access to the file"; `chat.update` with blocks replaces them, with text only it removes them.
+- Not documented, settled by `npm run spike:image` (user-run, see [live-run.md](live-run.md#image-card-spike)): whether a private file renders in a bot DM to another user, whether `files:read` is needed, what `replace_original` does with an image block, whether one file id renders for a second user, upload latency.
+
 ## Testing without Slack
 
 Keep Slack calls behind a small interface (`postCard`, `replaceMessage`, `lookupEmail`). Services get a fake in tests. The Roadmap Task 2 spike proves the real path.

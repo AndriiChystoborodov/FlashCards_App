@@ -243,6 +243,23 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | H9 | card with 9 options | text and labels within limits |
 | H10 | `rate_*` click | routed to `onRating`; `isCorrect` recomputed on the server from `o`; calculator called once with the rating |
 
+## Image renderer (Task 8b, Stage A)
+
+`src/render/render.test.ts`. Decision [0033](decisions/0033-image-cards.md). No golden hash: cross-platform byte equality is not claimed, so pixel properties are asserted.
+
+| id | case | expected |
+| --- | --- | --- |
+| R1 | render a short question | PNG signature, 1200x630, white background, some ink, the same bytes on a second run |
+| R2 | wrapping and shrinking with a fake measure | no line wider than the box, a very long word is cut, font from 64 px down in steps of 2, never below 28, null when it cannot fit |
+| R3 | the 500 limit | 500 characters pass, 501 give `question_too_long`; counted in code points; stripped characters do not count; 500 capital W do not fit and give `question_too_long` |
+| R4 | control, zero-width and bidi characters | removed, spaces and blank lines collapsed; combining marks without a base dropped, at most 2 per base; only invisible characters give `empty_question` |
+| R5 | glyph pre-check | Russian, Ukrainian (ї є і ґ) and German umlauts accepted; emoji, Arabic, Chinese and Hebrew give `unsupported_character` |
+| R6 | `glyphs.ts` against the font | the committed ranges equal the cmap of `Inter.ttf` (fontkit) |
+| R7 | all ink inside the margins, hostile input too | decoded PNG: non-white pixels within 80 px margins (2 px tolerance) for the samples, a long single word, many combining marks, blank lines, 400 narrow characters |
+| R8 | every sample renders | short, long, Russian, Ukrainian, umlauts |
+
+Manual: `npm run render:samples` writes `reports/samples/*.png` (gitignored) to look at; `npm run font:vendor -- --check` verifies the font hashes. R9 (the scenario asserts the image on every card) and R10 (the adapter with a stub client, the port with `FakeSlack`, the scheduler fallback) are Stage B. The real Slack questions are answered by the user-run spike ([slack/live-run.md](slack/live-run.md#image-card-spike)).
+
 ## MCP
 
 | id | case | expected |

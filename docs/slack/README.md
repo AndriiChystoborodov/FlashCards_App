@@ -9,6 +9,7 @@
 | `app_home.messages_tab_enabled: true`   | The bot has a DM tab                   | Students receive and answer cards there                          |
 | `messages_tab_read_only_enabled: false` | Users can write in that tab            | Students must be able to interact with the bot                   |
 | `chat:write`                            | Send messages                          | Send cards and notifications                                     |
+| `files:write`                           | Upload files                           | Image cards: the question is drawn as a PNG and uploaded (spike only so far, [decision 0033](../decisions/0033-image-cards.md)); **reinstall the app after adding it** |
 | `users:read`                            | Read the workspace user list           | Find students in Slack                                           |
 | `users:read.email`                      | See users' emails                      | Match students from our database to Slack accounts by email      |
 | `interactivity.is_enabled: true`        | Button clicks are delivered to the app | Students answer by clicking buttons                              |
