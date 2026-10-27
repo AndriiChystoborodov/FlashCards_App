@@ -23,6 +23,28 @@ Source: the user, 2026-10-27. Requirement: a flashcard is sent in Slack as an im
 | 9 | One upload per delivery, no file id stored, no migration. Revisit after the spike with the measured upload latency and whether one file id works for another user | the user's answer |
 | 10 | The spike is a user-run script that duplicates the client options of `createSlack` and builds the upload and the image-block post itself; only `slackPort(...).lookupEmail` is the production adapter | Stage A must not edit production files |
 
+## Spike run 1 (the user, 2026-10-27): the post was rejected
+
+Reported by the user: `filesUploadV2` answered `ok=true` with a private file id; then `chat.postMessage` with the image block answered `invalid_blocks` ("invalid slack file", json pointer `/blocks/0/slack_file.id/slack_file`). Nothing was posted. Stage A stays unchanged in production; the spike script now runs a diagnosis ladder (below).
+
+**Verified from the docs and the installed types (SDK 8.2.0, no Slack needed):**
+- The id is read at `res.files[0].files[0].id` (`filesUploadV2` returns one `completeUploadExternal` answer per upload group, each with `files[]`); the block built is exactly `{type: "image", slack_file: {id}, alt_text}` (`imageBlock` in `src/slack/spikeProbe.ts`, tested): no `image_url`, no extra field, `id` a plain string. The json pointer `slack_file.id/slack_file` is Slack's way of naming the rejected `slack_file` object, not a sign of a wrong nesting.
+- Slack's guide on private images in Block Kit (slack.com/blog/developers/uploading-private-images-blockkit): a file need not be shared to a channel, uploaded files are private to the uploader, and the posting identity must have access (use the same token for upload and post); PNG, JPEG and GIF only. It names no scope and no waiting time. The image-block reference page says nothing about access or errors.
+- `files.info` needs `files:read`; the spike prints `missing_scope` as a finding if the app lacks it (the manifest has only `files:write`).
+- The client may expose the granted scopes as `response_metadata.scopes` of `auth.test` (type exists in 8.2.0); the spike prints them or says they are not exposed.
+
+**Hypotheses for the rejection, ranked (all unverified until the user runs `scripts/image-spike.ts`):**
+1. **The file is not ready yet.** `completeUploadExternal` returns before Slack has finished processing the file; the post validates `slack_file` at once. Evidence for: the error is a validation of the file ("invalid slack file"), not `missing_scope`, `not_in_channel` or `file_not_found`; the helper returns right after completing; the docs are silent on timing. Test A (retries after 0.5, 1, 2, 4, 8 s) answers it and prints how long it took.
+2. **A private file does not resolve in the DM of another conversation.** Docs: "the user posting must have access". The guide says sharing is not needed, but it does not cover a bot posting to a user's DM that was opened by `chat.postMessage` with a user id. Evidence against: the same bot token uploaded and posts. Test B (upload with `channel_id` = the DM) answers it.
+3. **Slack did not recognise the upload as an image.** The Buffer is uploaded under the name `card-N.png`; if the stored `mimetype`/`filetype` is not `image/png`/`png` the block is invalid. `files.info` prints both; a mismatch is printed with `!!`. Tests B to D change how the file is uploaded.
+4. **The `id` form is rejected but `url` works.** Both are allowed by the docs. Test C posts `slack_file: {url}` with the file's `url_private` (never printed).
+5. **The token lacks a scope for resolving files (`files:read`)**. Less likely (a missing scope normally has its own error), but the printed scopes and the `files.info` result settle it.
+6. **Our code sent a wrong id.** Unlikely: the id printed by the user has the `F…` shape and is the one the SDK returned.
+
+**The ladder** (first card; the strategy that works is used for the other cards): A private upload, `files.info`, post with the 0.5/1/2/4/8 s retries; B upload with `channel_id` = the DM (puts a separate file message into the DM; the DM channel id comes from an intro text message, which is an extra message); C `slack_file.url`; D the explicit `getUploadURLExternal` + POST + `completeUploadExternal` route with `channel_id`. A full run in which nothing works takes about 70 seconds (four strategies, 15.5 s of retries each). The script also prints `auth.test` (the bot user id: the same token uploaded and posted), the scopes, the block JSON that was sent and, per card, the timings and the number of attempts.
+
+**What the user pastes back:** the whole output of `npm run spike:image -- --email <you>`; which strategy printed `ACCEPTED` and after how many seconds; whether a separate file message appeared in the DM (B, D); whether the image shows in the card; and after the clicks whether the image stayed or went.
+
 ## What the spike settles (open until the user runs it)
 
 Does a private uploaded file render in a bot DM to the student, or must it be shared to the DM channel (`--share`)? Is `files:read` needed? What does `replace_original` (response_url) do with the image block, with and without the image in the replacement, and what does `chat.update` do? Does the same file id render for a second user (`--email2`)? Upload latency. See [slack/integration.md](../slack/integration.md#image-cards-planned-stage-a-built).

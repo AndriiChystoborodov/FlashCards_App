@@ -258,7 +258,7 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | R7 | all ink inside the margins, hostile input too | decoded PNG: non-white pixels within 80 px margins (2 px tolerance) for the samples, a long single word, many combining marks, blank lines, 400 narrow characters |
 | R8 | every sample renders | short, long, Russian, Ukrainian, umlauts |
 
-Manual: `npm run render:samples` writes `reports/samples/*.png` (gitignored) to look at; `npm run font:vendor -- --check` verifies the font hashes. R9 (the scenario asserts the image on every card) and R10 (the adapter with a stub client, the port with `FakeSlack`, the scheduler fallback) are Stage B. The real Slack questions are answered by the user-run spike ([slack/live-run.md](slack/live-run.md#image-card-spike)).
+Manual: `npm run render:samples` writes `reports/samples/*.png` (gitignored) to look at; `npm run font:vendor -- --check` verifies the font hashes. P1 to P4 (`src/slack/spikeProbe.test.ts`, spike helpers): the image block has exactly `type`, `slack_file`, `alt_text`; `invalid_blocks` is retried with the 0.5, 1, 2 s backoff (fake timers) and the waited time is reported; the post gives up after 15.5 s and says it never worked; other errors are not retried; `files.info` summaries and printed blocks hold no url. R9 (the scenario asserts the image on every card) and R10 (the adapter with a stub client, the port with `FakeSlack`, the scheduler fallback) are Stage B. The real Slack questions are answered by the user-run spike ([slack/live-run.md](slack/live-run.md#image-card-spike)).
 
 ## MCP
 
