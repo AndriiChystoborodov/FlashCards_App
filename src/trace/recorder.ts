@@ -91,7 +91,8 @@ export function createRecorder(opts: { clock: Clock }): Recorder {
     };
     const msg = (m: CardMessage) => ({ text: m.text, buttons: buttonsOf(m) });
     return {
-      postCard: (to, m) => record('postCard', { to, ...msg(m) }, () => port.postCard(to, m)),
+      // The image is recorded as a placeholder with its size and alt text, never its bytes (decision 0034).
+      postCard: (to, m, image) => record('postCard', { to, ...msg(m), ...(image && { image: `<image ${image.width}x${image.height}>`, alt: image.alt }) }, () => port.postCard(to, m, image)),
       replaceMessage: (channel, ts, m) => record('replaceMessage', { channel, ts, ...msg(m) }, () => port.replaceMessage(channel, ts, m)),
       lookupEmail: (email) => record('lookupEmail', { email }, () => port.lookupEmail(email)),
     };

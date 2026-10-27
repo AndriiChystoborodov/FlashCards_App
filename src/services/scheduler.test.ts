@@ -1,5 +1,5 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import { createControlledClock } from '../clock.js';
 import { newCardState, type CardState } from '../domain/calculator.js';
 import { getCardState, upsertCardState } from '../db/cardStates.js';
@@ -7,8 +7,10 @@ import { getOpenCard } from '../db/selection.js';
 import { cardStates, courses, enrollments, flashcards, reviews, users } from '../db/schema.js';
 import { db, pool } from '../db/testDb.js';
 import { FakeSlack } from '../slack/fake.js';
+import { CardImageError } from '../slack/port.js';
+import * as renderModule from '../render/card.js';
 import { submitAnswer } from './answer.js';
-import { afterAnswer, finishCourse, finishEndedCourses, next, sendFirstCards, sendNext, TEXT, type SchedulerDeps } from './scheduler.js';
+import { afterAnswer, finishCourse, finishEndedCourses, next, resendStaleClaim, sendFirstCards, sendNext, TEXT, type SchedulerDeps } from './scheduler.js';
 
 afterAll(() => pool.end());
 
@@ -512,5 +514,76 @@ describe('no real clock', () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('./scheduler.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/new Date\(\)|Date\.now/);
+  });
+});
+
+describe('image cards (decision 0034)', () => {
+  const quiet = () => vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+  it('I1: the card is posted with its image (1200x630 PNG, alt = the question) and the text stays question plus options', async () => {
+    const w = await world({ normal: 1 });
+    await sendNext(w.deps, w.studentId, w.courseId);
+    const p = w.slack.posted[0]!;
+    expect(p.image).toMatchObject({ width: 1200, height: 630, alt: 'Q100' });
+    expect(p.image!.png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(p.message.text).toBe('Q: Q100\n1. a\n2. b\n3. c');
+    expect(p.message.blocks.map((b) => b.type)).toEqual(['section', 'actions']); // the port puts the image block first
+    expect(JSON.stringify(p.message.blocks)).not.toContain('Q100'); // the question is on the image only
+    expect((await getOpenCard(db, w.studentId, w.courseId))?.messageTs).toBe(p.ts);
+  });
+
+  it.each([['upload_failed'], ['not_ready'], ['no_file_id']] as const)('I2: an image failure (%s) sends the text card, logs a short code and records the delivery', async (code) => {
+    const warn = quiet();
+    const w = await world({ normal: 1 });
+    w.slack.failNextImage = new CardImageError(code);
+    await sendNext(w.deps, w.studentId, w.courseId);
+    expect(w.slack.posted).toHaveLength(1);
+    expect(w.slack.posted[0]!.image).toBeUndefined();
+    expect(w.slack.posted[0]!.message.blocks[0]).toMatchObject({ type: 'section', text: { text: expect.stringContaining('Q100') } }); // the question is in the text card
+    expect((await getOpenCard(db, w.studentId, w.courseId))?.messageTs).toBe(w.slack.posted[0]!.ts);
+    expect(warn.mock.calls.flat().join(' ')).toContain(code);
+    warn.mockRestore();
+  });
+
+  it('I3: a question that cannot be drawn (stored before the rule) is sent as text: the claim does not loop', async () => {
+    const warn = quiet();
+    const w = await world({ normal: 1 });
+    await db.update(flashcards).set({ question: 'Is it fine \u{1F600}?' }).where(eq(flashcards.id, w.normalIds[0]!));
+    await sendNext(w.deps, w.studentId, w.courseId);
+    expect(w.slack.posted[0]!.image).toBeUndefined();
+    expect(w.slack.posted[0]!.message.text).toContain('\u{1F600}');
+    expect(warn.mock.calls.flat().join(' ')).toContain('unsupported_character');
+    warn.mockRestore();
+  });
+
+  it('I4: any other Slack failure propagates, the claim stays, and the stale-claim re-send posts the image again', async () => {
+    const w = await world({ normal: 1 });
+    w.slack.failNextPost = new Error('Slack down');
+    await expect(sendNext(w.deps, w.studentId, w.courseId)).rejects.toThrow('Slack down');
+    expect(w.slack.posted).toHaveLength(0);
+    expect((await getOpenCard(db, w.studentId, w.courseId))?.messageTs).toBeNull();
+    w.clock.set(new Date(w.clock.now().getTime() + 11 * 60_000));
+    expect(await resendStaleClaim(w.deps, w.studentId, w.courseId, 10 * 60_000)).toBe(true);
+    expect(w.slack.posted).toHaveLength(1);
+    expect(w.slack.posted[0]!.image).toMatchObject({ width: 1200, height: 630, alt: 'Q100' });
+  });
+
+  it('I5: a message that is not a card (course start, ended, exempt) is posted without an image', async () => {
+    const w = await world({ normal: 1 });
+    const { dm } = await import('./scheduler.js');
+    await dm(w.deps, w.studentId, TEXT.started);
+    expect(w.slack.posted[0]!.image).toBeUndefined();
+  });
+
+  it('I6: a renderer that throws (missing font, native failure) sends the text card and logs only the error name', async () => {
+    const warn = quiet();
+    const spy = vi.spyOn(renderModule, 'renderCard').mockImplementation(() => { throw new Error('canvas exploded /secret/path'); });
+    const w = await world({ normal: 1 });
+    await sendNext(w.deps, w.studentId, w.courseId);
+    spy.mockRestore();
+    expect(w.slack.posted[0]!.image).toBeUndefined();
+    expect(warn.mock.calls.flat().join(' ')).toContain('render_threw Error');
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('secret');
+    warn.mockRestore();
   });
 });

@@ -13,7 +13,7 @@ const confirmed = (effect: string) =>
   z.literal(true).describe(`Must be true. Set it only after the user has said yes in this conversation to: ${effect}. If they have not, ask them first and do not call this tool.`);
 
 const flashcard = z.strictObject({
-  question: z.string().min(1).describe('Plain text. Question and all options together at most 2,900 characters.'),
+  question: z.string().min(1).describe('Plain text, at most 500 characters: the question is drawn on an image. Latin (with umlauts), Cyrillic (including Ukrainian) and Greek only: no emoji, no Arabic, Hebrew or Asian scripts, no markup. Question and all options together at most 2,900 characters.'),
   options: z.array(z.string().min(1)).min(2).max(9).describe('2 to 9 answer options, in the order shown to the student.'),
   correct_option: z.int().min(0).describe('0-based index into options (0 is the first option).'),
   material_url: url.nullable().optional().describe('Link shown to the student after answering.'),
@@ -97,6 +97,7 @@ export const tools: ToolDef[] = [
     name: 'add_flashcards',
     description:
       'Add 1 to 100 flashcards in one call (they go to the end). Each has 2 to 9 options and a 0-based correct_option. Question plus all options together at most 2,900 characters (Slack limit). ' +
+      'The question is sent to students as an IMAGE: at most 500 characters, plain text only (no markup), supported characters are Latin with umlauts, Cyrillic including Ukrainian, and Greek (no emoji, Arabic, Hebrew or Asian scripts); invisible characters and extra spaces are removed. Too long or unsupported: question_too_long, unsupported_character or empty_question (the whole call is refused). Put long context into the options or the material_url, not the question. ' +
       'Question and options can NEVER be edited after adding, so check them first. is_assessment (default false) may be true only while the course is a draft; on a running course it is refused (assessment_closed). ' +
       'A finished course refuses new cards (course_finished). Cards added to a running course join the pool and are introduced over the remaining days.',
     input: z.strictObject({ course_id: courseId, flashcards: z.array(flashcard).min(1).max(100) }),

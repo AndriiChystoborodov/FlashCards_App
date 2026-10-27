@@ -159,3 +159,22 @@ describe('no secret reaches the files (T-LEAK)', () => {
     expect(serializeTrace(t)).toContain('ann@x.test'); // the serializer alone does not scrub: the scan is the guard
   });
 });
+
+describe('image cards in the trace (decision 0034)', () => {
+  it('T-IMG-1 records an image as a placeholder with its size and alt text, never its bytes', async () => {
+    const rec = createRecorder({ clock: clock() });
+    const fake = new FakeSlack();
+    const png = Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.from('DISTINCTIVE-PIXEL-BYTES-123')]);
+    rec.beginStep(1, 'one');
+    await rec.slack(fake).postCard('U1', buildCardMessage({ id: 'c', question: 'Q?', options: ['a', 'b'] }, { imageAbove: true }), { png, width: 1200, height: 630, alt: 'Q?' });
+    await rec.slack(fake).postCard('U1', { text: 'plain', blocks: [] });
+    const [withImage, plain] = rec.trace({ studentRoutesEnabled: false }).steps[0]!.events;
+    expect(withImage).toMatchObject({ kind: 'slack', call: 'postCard', req: { image: '<image 1200x630>', alt: 'Q?' } });
+    expect((plain as { req: object }).req).not.toHaveProperty('image');
+    const text = JSON.stringify(rec.trace({ studentRoutesEnabled: false }));
+    expect(text).not.toContain('DISTINCTIVE');
+    expect(text).not.toContain(png.toString('base64'));
+    expect(text).not.toContain(png.toString('hex'));
+    expect(fake.posted[0]!.image!.png.equals(png)).toBe(true); // the real call got the bytes
+  });
+});

@@ -37,7 +37,7 @@ Course `PATCH` errors (shape `{ "error": { "code", "message" } }`, test cases R2
 
 [Decision 0016](decisions/0016-flashcards-frozen-after-start.md): editing and deleting cards, including marking or unmarking assessment, is allowed only while the course is `draft`. After `start` the API returns 409 `course_not_draft`; only adding new cards is allowed (not on a `finished` course: 409 `course_finished`). Question and options of a card are never editable through `PATCH`. Cards added to an `active` course never reopen a `completed` enrollment.
 
-Validation: 2 to 9 options, `correct_option` inside the range, button labels are only numbers so option text length is bounded by Slack message text (question and options together at most 2,900 characters: Slack's section block holds 3,000 and the card adds about 40 for formatting).
+Validation: the question is drawn on an image ([decision 0034](decisions/0034-image-cards-stage-b.md)): after removing invisible characters and extra spaces it has at most 500 characters, only characters of the bundled font (Latin with umlauts, Cyrillic including Ukrainian, Greek; no emoji, Arabic, Hebrew or Asian scripts) and it must fit the card; the cleaned text is stored; a refused card names its number (`Card 2: ...`) and the whole batch is refused. 2 to 9 options, `correct_option` inside the range, button labels are only numbers so option text length is bounded by Slack message text (question and options together at most 2,900 characters: Slack's section block holds 3,000 and the card adds about 40 for formatting).
 
 ## Class (teacher)
 
@@ -93,6 +93,7 @@ One table for the whole API (decision 0028). Codes marked * are not named anywhe
 | `unauthorized`* | 401 | no, malformed or unknown bearer token on a teacher route | R1 |
 | `not_found` | 404 | unknown, malformed or other teacher's id; unknown route; a student route while `STUDENT_ROUTES_ENABLED` is off; a removed or never-enrolled student | R2, R19, R15 |
 | `invalid_request`* | 400 | any body that fails validation (also bad JSON, wrong content type, a body over 1 MB); `correct_option` outside the options; a missing `ends_at` | R3, R4 |
+| `question_too_long`, `unsupported_character`, `empty_question` | 400 | `POST` flashcards: a question over 500 characters (after cleaning) or too wide to fit the card; a character the font lacks; a question that is empty after cleaning ([decision 0034](decisions/0034-image-cards-stage-b.md)) | R4b |
 | `assessment_closed` | 400 | `POST` flashcards with `is_assessment: true` on an `active` course | R13 |
 | `rating_required`* | 400 | review: right answer without `rating` ([decision 0004](decisions/0004-right-answer-requires-rating.md)) | R9 |
 | `invalid_option`* | 400 | review: `chosen_option` is not an option of the card | R9 |

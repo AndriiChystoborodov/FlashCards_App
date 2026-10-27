@@ -2,7 +2,7 @@ import { loadImage, createCanvas } from '@napi-rs/canvas';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { openSync } from 'fontkit';
-import { renderCard } from './card.js';
+import { checkQuestion, renderCard } from './card.js';
 import { GLYPH_RANGES } from './glyphs.js';
 import { glyphRangesOfFont } from './glyphRanges.js';
 import { CARD, layoutText, wrapLines, type Measure } from './layout.js';
@@ -139,5 +139,14 @@ describe('renderCard (R1, R7)', () => {
   });
   it('renders every sample (R8)', () => {
     for (const [name, q] of Object.entries(SAMPLES)) expect(renderCard(q).ok, name).toBe(true);
+  });
+});
+
+describe('checkQuestion (R9)', () => {
+  it('is validateQuestion plus the measured fit, and draws nothing', () => {
+    expect(checkQuestion(SAMPLES.long)).toMatchObject({ ok: true });
+    expect(checkQuestion('W'.repeat(MAX_QUESTION_CHARS))).toEqual({ ok: false, code: 'question_too_long' });
+    expect(checkQuestion(UNSUPPORTED[0])).toEqual({ ok: false, code: 'unsupported_character' });
+    expect(checkQuestion(SAMPLES.ukrainian)).toEqual({ ok: true, text: SAMPLES.ukrainian });
   });
 });

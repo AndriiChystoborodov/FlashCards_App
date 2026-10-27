@@ -12,8 +12,9 @@ import type { users } from '../db/schema.js';
 import { getUser, setDmChannel } from '../db/users.js';
 import { endOfLocalDay, localDaysThrough, startOfLocalDayOf } from '../domain/localDay.js';
 import { quotaToday } from '../domain/quota.js';
+import { renderCard } from '../render/card.js';
 import { buildCardMessage, textOnly } from '../slack/card.js';
-import type { SlackPort } from '../slack/port.js';
+import { CardImageError, type CardImage, type SlackPort } from '../slack/port.js';
 import type { AnswerResult } from './answer.js';
 import { errText } from './logError.js';
 import { studentTimezone } from './timezone.js';
@@ -102,9 +103,45 @@ export async function sendNext(deps: SchedulerDeps, userId: string, courseId: st
   return { status: 'sent', flashcardId: n.card.id, kind: n.kind, channel, ts };
 }
 
-/** Posts the card, records `message_channel`/`message_ts` and caches the DM channel. Shared by the send and the stale-claim re-send. */
+/**
+ * The question as an image (decision 0034), rendered per delivery (no cache, no stored file id). Null with a short logged code when
+ * the question cannot be drawn: the card is then sent as text, so a claimed card is never retried forever.
+ */
+const errName = (e: unknown) => (e instanceof Error ? e.name : 'unknown');
+
+function imageOf(card: Flashcard): CardImage | null {
+  let r: ReturnType<typeof renderCard>;
+  try {
+    r = renderCard(card.question);
+  } catch (err) {
+    console.warn(`card ${card.id}: no image (render_threw ${errName(err)}), sent as text`); // a missing font or a native failure must not keep a claim failing
+    return null;
+  }
+  if (!r.ok) {
+    console.warn(`card ${card.id}: no image (${r.code}), sent as text`);
+    return null;
+  }
+  return { png: r.png, width: r.width, height: r.height, alt: r.text };
+}
+
+/**
+ * Posts the card (image first, text card when the image is unavailable: render error, upload failure, Slack never accepted the
+ * block), records `message_channel`/`message_ts` and caches the DM channel. Shared by the send and the stale-claim re-send (and
+ * the reminders of 6b-2). Any other Slack error propagates: the claim stays and the tick re-posts it (decision 0027).
+ */
 async function postCard(deps: SchedulerDeps, user: User, card: Flashcard, sentAt?: Date): Promise<{ channel: string; ts: string }> {
-  const { channel, ts } = await deps.slack.postCard(user.slackDmChannel ?? user.slackId!, buildCardMessage(card));
+  const to = user.slackDmChannel ?? user.slackId!;
+  const image = imageOf(card);
+  let posted: { channel: string; ts: string } | undefined;
+  if (image) {
+    try {
+      posted = await deps.slack.postCard(to, buildCardMessage(card, { imageAbove: true }), image);
+    } catch (err) {
+      if (!(err instanceof CardImageError)) throw err;
+      console.warn(`card ${card.id}: image unavailable (${err.code}), sent as text`);
+    }
+  }
+  const { channel, ts } = posted ?? (await deps.slack.postCard(to, buildCardMessage(card)));
   await setCardMessage(deps.db, user.id, card.id, channel, ts, sentAt);
   if (!user.slackDmChannel) await setDmChannel(deps.db, user.id, channel);
   return { channel, ts };

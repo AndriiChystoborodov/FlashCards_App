@@ -70,3 +70,15 @@ Decision [0033](../decisions/0033-image-cards.md), Stage A. It checks what only 
 4. Expect 4 DMs (short, long, Russian, German): an image with the question, the options as text, and the buttons 1, 2, 3, Don't know. Click one answer on each card. The script logs which replacement it used (card 1 and 2: text only, card 3: text plus the same image, card 4: `chat.update` text only).
 5. Tell Claude (paste the whole output): which strategy printed `ACCEPTED` and after how many seconds, whether `files.info` failed with `missing_scope`, whether a separate file message appeared, do the images show; did the image disappear or stay after each click (expected: gone on cards 1, 2 and 4, kept on card 3); the printed timings; the log lines; whether user 2 sees the image (or `reuse across users: unverified`).
 
+## Image cards live check (Task 8b, built)
+
+What the image spike showed (2026-10-27, [decision 0034](../decisions/0034-image-cards-stage-b.md)): a private upload plus a post works after one retry at 0.5 s; replacing through `response_url` with the same image block keeps the image, with text only removes it; about 2 s per card. Not yet seen live in the real flow (what the spike did not run): the cards sent by the scheduler, the rating prompt and outcome with the image kept, the fallback.
+
+Hand-steps (the app needs `files:write`, the app was reinstalled for the spike):
+1. `npm run db:up`, `npm run db:reset`, `npm run dev` (terminal 1).
+2. `npm run demo:seed -- you@company.com 3` (terminal 2). The demo course now has one Russian card (the last assessment-free card) besides the English ones.
+3. Look at the first card in Slack: an image with the question, the options as text under it, the buttons 1, 2, 3 and Don't know. Note how long the first card takes after the seed (about 2 s expected).
+4. Click a RIGHT option: the image must stay with the Hard / Medium / Easy buttons under it. Click a rating: the image stays with "Thanks. You rated it ...". Click a WRONG option on a later card: the image stays with the right answer.
+5. Fallback: temporarily remove `files:write` from the app (or run with a revoked token for files only), reinstall, restart `npm run dev` and trigger a card: a plain text card arrives and the log shows `image unavailable (upload_failed)`. Restore the scope afterwards.
+6. Tell Claude: did every card show its image, the time per card, whether the image stayed in all three replacements, and what the log printed for any `image unavailable` or `image dropped on replace` line.
+

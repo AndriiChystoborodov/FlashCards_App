@@ -30,8 +30,8 @@ export function describeFile(file: Record<string, unknown> | undefined): Record<
   const keys = Object.keys(file);
   const shares = file.shares as { public?: Record<string, unknown>; private?: Record<string, unknown> } | undefined;
   return {
-    mimetype: file.mimetype,
-    filetype: file.filetype,
+    mimetype: file.mimetype || 'empty (not processed yet)',
+    filetype: file.filetype || 'empty (not processed yet)',
     size: file.size,
     original_w: file.original_w,
     original_h: file.original_h,

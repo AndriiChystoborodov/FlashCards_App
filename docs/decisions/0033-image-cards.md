@@ -45,6 +45,10 @@ Reported by the user: `filesUploadV2` answered `ok=true` with a private file id;
 
 **What the user pastes back:** the whole output of `npm run spike:image -- --email <you>`; which strategy printed `ACCEPTED` and after how many seconds; whether a separate file message appeared in the DM (B, D); whether the image shows in the card; and after the clicks whether the image stayed or went.
 
+## Spike run 2 (the user, 2026-10-27): VERIFIED in real Slack
+
+Strategy A (private upload, then post) works; each of the 4 cards was accepted after exactly one retry at 0.5 s, so hypothesis 1 (the file is not ready yet) is the cause. Empty mimetype and filetype and no thumbnails right after the upload mean "not processed yet". Timings, the replace behaviour and the list of unverified items are in [0034](0034-image-cards-stage-b.md). The ranked hypotheses above are historical.
+
 ## What the spike settles (open until the user runs it)
 
 Does a private uploaded file render in a bot DM to the student, or must it be shared to the DM channel (`--share`)? Is `files:read` needed? What does `replace_original` (response_url) do with the image block, with and without the image in the replacement, and what does `chat.update` do? Does the same file id render for a second user (`--email2`)? Upload latency. See [slack/integration.md](../slack/integration.md#image-cards-planned-stage-a-built).

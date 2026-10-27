@@ -59,7 +59,32 @@ const button = (actionId: string, label: string, value: string) => ({
 /** Only what the card message needs: never the correct option (H2). */
 export type CardView = Pick<SpikeCard, 'id' | 'question' | 'options'>;
 
-export function buildCardMessage(card: CardView): CardMessage {
+/** The block that shows an uploaded image (docs.slack.dev image block). Exactly one of id and url: Slack rejects both together. */
+export type SlackImageRef = { id: string } | { url: string };
+export type ImageBlock = { type: 'image'; slack_file: SlackImageRef; alt_text: string };
+
+export const imageBlock = (ref: SlackImageRef, alt: string): ImageBlock => ({ type: 'image', slack_file: 'id' in ref ? { id: ref.id } : { url: ref.url }, alt_text: alt.slice(0, 2000) });
+
+/** The same message with the image block first. */
+export const withImage = (m: CardMessage, image: { ref: SlackImageRef; alt: string } | null | undefined): CardMessage =>
+  image ? { text: m.text, blocks: [imageBlock(image.ref, image.alt), ...m.blocks] } : m;
+
+/**
+ * The image of a clicked message: Slack's payload may hold `id` and `url` in one `slack_file`; only the id is sent back (both together
+ * are refused). Null when the message has no image block or its file cannot be read.
+ */
+export function imageOfBlocks(blocks: readonly unknown[] | undefined): { ref: SlackImageRef; alt: string } | null {
+  for (const b of blocks ?? []) {
+    if (typeof b !== 'object' || b === null || (b as { type?: unknown }).type !== 'image') continue;
+    const { slack_file: f, alt_text: alt } = b as { slack_file?: { id?: unknown; url?: unknown }; alt_text?: unknown };
+    const ref = typeof f?.id === 'string' && f.id ? { id: f.id } : typeof f?.url === 'string' && f.url ? { url: f.url } : null;
+    return ref ? { ref, alt: typeof alt === 'string' && alt ? alt : 'Flashcard question' } : null;
+  }
+  return null;
+}
+
+/** With `imageAbove` the question is on the image (the port adds the image block): the message keeps only the options and the buttons, and `text` still holds the question for notifications. */
+export function buildCardMessage(card: CardView, opts: { imageAbove?: boolean } = {}): CardMessage {
   const question = escapeMrkdwn(card.question);
   const list = card.options.map((o, i) => `${i + 1}. ${escapeMrkdwn(o)}`).join('\n');
   const buttons = card.options.map((_, i) =>
@@ -69,7 +94,7 @@ export function buildCardMessage(card: CardView): CardMessage {
   return {
     text: `Q: ${question}\n${list}`,
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: `*${question}*\n${list}` } },
+      { type: 'section', text: { type: 'mrkdwn', text: opts.imageAbove ? list : `*${question}*\n${list}` } },
       { type: 'actions', elements: buttons },
     ],
   };

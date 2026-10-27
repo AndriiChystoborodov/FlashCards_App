@@ -29,7 +29,7 @@
 - Average load: 1,000 students in one class.
 - Maximum number of flashcards per course: open question (500 assumed).
 - Slack for messaging.
-- Flashcards are sent in Slack as a generated image of the question (no teacher upload), options as text, at most 500 characters of question. Stage A of Task 8b is built (renderer and spike); the limit in the REST API and the sending are Stage B ([decision 0033](decisions/0033-image-cards.md)).
+- Flashcards are sent in Slack as a generated image of the question (no teacher upload), options as text, at most 500 characters of question. Built: the renderer, the sending (text card when the image cannot be shown) and the REST limit ([decision 0033](decisions/0033-image-cards.md), [0034](decisions/0034-image-cards-stage-b.md)).
 
 ### Out of scope
 

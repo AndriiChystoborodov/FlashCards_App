@@ -1,3 +1,4 @@
+import { checkQuestion } from '../render/card.js';
 import { lockCourse } from '../db/courses.js';
 import { deleteFlashcard as deleteCard, getFlashcard, insertFlashcards, listFlashcardsByCourse, maxPosition, moveFlashcard, updateFlashcard, type FlashcardRow } from '../db/flashcards.js';
 import { ownedCourse } from './courses.js';
@@ -12,9 +13,24 @@ export interface NewFlashcard {
   isAssessment: boolean;
 }
 
+const QUESTION_MESSAGE = {
+  question_too_long: 'the question is longer than 500 characters or does not fit on the card.',
+  unsupported_character: 'the question has a character that cannot be drawn (emoji, right-to-left and Asian scripts are not supported; Latin, Cyrillic and Greek are).',
+  empty_question: 'the question is empty after removing invisible characters.',
+} as const;
+
 /** decision 0016: add on draft or active; an active course takes no assessment cards; finished takes nothing. All or nothing. */
 export async function addFlashcards(deps: SchedulerDeps, teacherId: string, courseId: string, cards: NewFlashcard[]): Promise<FlashcardRow[]> {
   await ownedCourse(deps, teacherId, courseId);
+  // Decision 0034: a question is drawn on an image, so it is cleaned (invisible characters, spaces) and limited before anything is stored;
+  // the cleaned text is what is stored. The message names the card by number and never echoes the input.
+  const questions: string[] = [];
+  for (const [i, c] of cards.entries()) {
+    const v = checkQuestion(c.question);
+    if (!v.ok) throw new ServiceError(v.code, `Card ${i + 1}: ${QUESTION_MESSAGE[v.code]}`);
+    questions.push(v.text);
+    await new Promise((r) => setImmediate(r)); // a hostile card costs up to ~30 ms of measuring: let other requests run between cards
+  }
   return deps.db.transaction(async (tx) => {
     const course = await lockCourse(tx, courseId);
     if (!course) throw new ServiceError('not_found', 'Course not found.');
@@ -23,7 +39,7 @@ export async function addFlashcards(deps: SchedulerDeps, teacherId: string, cour
       throw new ServiceError('assessment_closed', 'The assessment has already run; cards added to a running course cannot be assessment cards.');
     }
     const start = await maxPosition(tx, courseId);
-    return insertFlashcards(tx, cards.map((c, i) => ({ courseId, question: c.question, options: c.options, correctOption: c.correctOption, isAssessment: c.isAssessment, materialUrl: c.materialUrl ?? null, position: start + i + 1 })));
+    return insertFlashcards(tx, cards.map((c, i) => ({ courseId, question: questions[i]!, options: c.options, correctOption: c.correctOption, isAssessment: c.isAssessment, materialUrl: c.materialUrl ?? null, position: start + i + 1 })));
   });
 }
 

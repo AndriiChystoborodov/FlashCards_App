@@ -18,7 +18,7 @@ export class HttpError extends Error {
 
 /** The code -> status table of docs/rest-api.md. */
 export const STATUS: Record<ApiCode, number> = {
-  invalid_request: 400, assessment_closed: 400, rating_required: 400, invalid_option: 400,
+  invalid_request: 400, assessment_closed: 400, rating_required: 400, invalid_option: 400, question_too_long: 400, unsupported_character: 400, empty_question: 400,
   unauthorized: 401,
   not_found: 404, internal: 500,
   course_not_draft: 409, course_not_active: 409, course_finished: 409, threshold_locked: 409, ends_at_shortened: 409, ends_at_passed: 409,

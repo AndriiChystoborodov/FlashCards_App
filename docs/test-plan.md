@@ -243,7 +243,7 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | H9 | card with 9 options | text and labels within limits |
 | H10 | `rate_*` click | routed to `onRating`; `isCorrect` recomputed on the server from `o`; calculator called once with the rating |
 
-## Image renderer (Task 8b, Stage A)
+## Image cards (Task 8b)
 
 `src/render/render.test.ts`. Decision [0033](decisions/0033-image-cards.md). No golden hash: cross-platform byte equality is not claimed, so pixel properties are asserted.
 
@@ -258,7 +258,27 @@ Run over HTTP on the test database with a controlled clock and `FakeSlack` (`src
 | R7 | all ink inside the margins, hostile input too | decoded PNG: non-white pixels within 80 px margins (2 px tolerance) for the samples, a long single word, many combining marks, blank lines, 400 narrow characters |
 | R8 | every sample renders | short, long, Russian, Ukrainian, umlauts |
 
-Manual: `npm run render:samples` writes `reports/samples/*.png` (gitignored) to look at; `npm run font:vendor -- --check` verifies the font hashes. P1 to P4 (`src/slack/spikeProbe.test.ts`, spike helpers): the image block has exactly `type`, `slack_file`, `alt_text`; `invalid_blocks` is retried with the 0.5, 1, 2 s backoff (fake timers) and the waited time is reported; the post gives up after 15.5 s and says it never worked; other errors are not retried; `files.info` summaries and printed blocks hold no url. R9 (the scenario asserts the image on every card) and R10 (the adapter with a stub client, the port with `FakeSlack`, the scheduler fallback) are Stage B. The real Slack questions are answered by the user-run spike ([slack/live-run.md](slack/live-run.md#image-card-spike)).
+Manual: `npm run render:samples` writes `reports/samples/*.png` (gitignored) to look at; `npm run font:vendor -- --check` verifies the font hashes. P1 to P4 (`src/slack/spikeProbe.test.ts`, spike helpers): the image block has exactly `type`, `slack_file`, `alt_text`; `invalid_blocks` is retried with the 0.5, 1, 2 s backoff (fake timers) and the waited time is reported; the post gives up after 15.5 s and says it never worked; other errors are not retried; `files.info` summaries and printed blocks hold no url. Sending and limits (Stage B, [decision 0034](decisions/0034-image-cards-stage-b.md)); R9 is `checkQuestion` in `render.test.ts`.
+
+| id | where | case | expected |
+| --- | --- | --- | --- |
+| R4b | `src/api/flashcards.test.ts` | question of 501 characters, 500 capital W, an emoji, Arabic, Chinese, only invisible characters; exactly 500 characters; cleaning | 400 `question_too_long` / `unsupported_character` / `empty_question`, `Card 2: ...`, no text echoed, nothing stored; 500 pass; invisible characters and spaces removed from the stored text |
+| W1 | `src/slack/web.test.ts` | image post | upload (private, no `channel_id`), then wait, then post with blocks `image, section, actions`, `text` = question plus options, `alt_text` set |
+| W2 | same | `invalid_blocks` | retried with 0.5/1/2 s steps; the file is uploaded once; after the whole backoff (15.5 s) `CardImageError not_ready` |
+| W3 | same | other Slack errors, upload failure, no file id | not retried; `SlackPortError` / `CardImageError upload_failed` / `no_file_id`; nothing posted; no token or bytes in the log |
+| I1 | `src/services/scheduler.test.ts` | `sendNext` | image 1200x630 PNG, alt = question, text unchanged, blocks without the question |
+| I2 | same | `CardImageError` (each code) | text card posted with the question, short code logged, delivery recorded |
+| I3 | same | a stored question that cannot be drawn | text card, `unsupported_character` logged |
+| I4 | same | Slack down on the image post, then the stale-claim re-send | the error propagates, claim stays, the re-send carries the image |
+| I5 | same | `dm()` text | no image |
+| H11 | `src/slack/handlers.test.ts` | rating prompt and right outcome on an image message | same image block sent back with the id only (never the url), then `section` |
+| H12 | same | wrong outcome; text card; url-only file; unreadable image block | image kept; replaced as before; url sent; text only plus the logged code `image_ref_unreadable` |
+| H13 | same | refusals (not open, sent again) | text only, image dropped |
+| T-IMG-1 | `src/trace/recorder.test.ts` | postCard with an image | `<image 1200x630>` and alt recorded, no bytes, no base64 or hex of them |
+| M4b | `src/mcp/tools.test.ts` | `add_flashcards` description | 500 characters, image, supported characters, the three codes, long context in options or material |
+| S-IMG | `scripts/scenario.ts` | cards through the scheduler | 1200x630 PNG, alt = the question in the text; the stale-claim re-send carries the image; start text has none |
+
+The real Slack questions are answered by the user-run spike ([slack/live-run.md](slack/live-run.md#image-card-spike)).
 
 ## MCP
 

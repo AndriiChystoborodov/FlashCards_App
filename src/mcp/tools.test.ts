@@ -159,6 +159,13 @@ describe('M4 descriptions carry the rules', () => {
     expect(d('start_course')).toMatch(/confirm/);
     expect(d('start_course')).toMatch(/confirmed: true/);
   });
+  it('add_flashcards says the question is an image: 500 characters, plain text, supported characters, the refusal codes (decision 0034)', () => {
+    expect(d('add_flashcards')).toMatch(/IMAGE: at most 500 characters, plain text only/);
+    expect(d('add_flashcards')).toMatch(/Latin with umlauts, Cyrillic including Ukrainian/);
+    expect(d('add_flashcards')).toMatch(/no emoji, Arabic, Hebrew or Asian scripts/);
+    expect(d('add_flashcards')).toMatch(/question_too_long, unsupported_character or empty_question/);
+    expect(d('add_flashcards')).toMatch(/Put long context into the options or the material_url/);
+  });
   it('update and delete flashcard say draft only', () => {
     expect(d('update_flashcard')).toMatch(/DRAFT COURSES ONLY/);
     expect(d('delete_flashcard')).toMatch(/DRAFT COURSES ONLY/);

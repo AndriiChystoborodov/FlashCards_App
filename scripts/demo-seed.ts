@@ -28,6 +28,7 @@ const CARDS: { question: string; options: string[]; correct: number; assessment:
   { question: 'How soon should a lost company laptop be reported?', options: ['Immediately', 'At the end of the week', 'Only if it had data'], correct: 0, assessment: false },
   { question: 'What is phishing?', options: ['Fraud that imitates a trusted sender', 'A network speed test', 'A backup method'], correct: 0, assessment: false },
   { question: 'Public Wi-Fi at a cafe: which is the safest way to work?', options: ['Without any protection', 'Through the company VPN', 'Only on websites with a logo'], correct: 1, assessment: false },
+  { question: 'Что нужно сделать, если вы получили подозрительное письмо от неизвестного отправителя?', options: ['Удалить без ответа', 'Сообщить в службу безопасности', 'Переслать коллегам'], correct: 1, assessment: false },
   { question: 'Who may you give your password to?', options: ['IT support, when they call you', 'A manager who asks nicely', 'Nobody'], correct: 2, assessment: false },
 ];
 

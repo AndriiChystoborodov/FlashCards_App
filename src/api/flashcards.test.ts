@@ -31,7 +31,7 @@ describe('add (R4, R13)', () => {
     ['one option', cardBody({ options: ['a'] })],
     ['ten options', cardBody({ options: Array.from({ length: 10 }, (_, i) => `o${i}`) })],
     ['an empty option', cardBody({ options: ['a', ''] })],
-    ['question and options over 2900 characters', cardBody({ question: 'q'.repeat(2891), options: ['aaaaa', 'bbbbb'] })],
+    ['question and options over 2900 characters', cardBody({ question: 'q'.repeat(500), options: ['a'.repeat(1200), 'b'.repeat(1201)] })],
     ['options not strings', cardBody({ options: [1, 2] })],
     ['unknown key', cardBody({ explanation: 'x' })],
   ])('R4: 400 for %s and nothing is stored', async (_n, card) => {
@@ -41,10 +41,35 @@ describe('add (R4, R13)', () => {
     expect(await rows(courseId)).toHaveLength(1);
   });
 
+  it.each([
+    ['501 characters', 'q'.repeat(501), 'question_too_long'],
+    ['500 wide capitals that do not fit the card', 'W'.repeat(500), 'question_too_long'],
+    ['an emoji', 'Is it fine \u{1F600}?', 'unsupported_character'],
+    ['Arabic', '\u0645\u0631\u062D\u0628\u0627 ?', 'unsupported_character'],
+    ['Chinese', '\u6F22\u5B57 ?', 'unsupported_character'],
+    ['only invisible characters', '\u200B\u200D \uFEFF', 'empty_question'],
+  ])('decision 0034: a question with %s is 400 %s, names the card and not the text, and the whole batch is refused', async (_n, question, code) => {
+    const { courseId } = await draftCourse(h, tom, 1, 0);
+    const r = await call('POST', `/courses/${courseId}/flashcards`, { flashcards: [cardBody(), cardBody({ question })] });
+    expect([r.status, r.body.error.code]).toEqual([400, code]);
+    expect(r.body.error.message).toMatch(/^Card 2: /);
+    expect(JSON.stringify(r.body)).not.toContain(question.slice(0, 20));
+    expect(await rows(courseId)).toHaveLength(1);
+  });
+
+  it('decision 0034: exactly 500 characters pass; invisible characters and spaces are cleaned before the question is stored', async () => {
+    const { courseId } = await draftCourse(h, tom, 1, 0);
+    const r = await call('POST', `/courses/${courseId}/flashcards`, {
+      flashcards: [cardBody({ question: 'q'.repeat(500) }), cardBody({ question: 'Caf\u00E9\u200B  with\u202E   \u0441\u043B\u043E\u0432\u043E \u00FC \u0457' })],
+    });
+    expect(r.status).toBe(201);
+    expect((await rows(courseId)).sort((a, b) => a.position - b.position).slice(1).map((c) => c.question)).toEqual(['q'.repeat(500), 'Caf\u00E9 with \u0441\u043B\u043E\u0432\u043E \u00FC \u0457']);
+  });
+
   it('nine options and exactly 2900 characters are accepted; positions run 1..n in order', async () => {
     const { courseId } = await draftCourse(h, tom, 2, 0);
     const r = await call('POST', `/courses/${courseId}/flashcards`, {
-      flashcards: [cardBody({ options: Array.from({ length: 9 }, (_, i) => `o${i}`), correct_option: 8 }), cardBody({ question: 'q'.repeat(2890), options: ['aaaaa', 'bbbbb'] })],
+      flashcards: [cardBody({ options: Array.from({ length: 9 }, (_, i) => `o${i}`), correct_option: 8 }), cardBody({ question: 'q'.repeat(500), options: ['a'.repeat(1200), 'b'.repeat(1200)] })],
     });
     expect(r.status).toBe(201);
     expect(r.body.flashcards.map((f: { position: number }) => f.position)).toEqual([3, 4]);

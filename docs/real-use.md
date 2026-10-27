@@ -57,6 +57,7 @@ Task 6b-2 (reminders and the 14-day cleanup) is not built ([decision 0027](decis
 
 - **Short courses:** a perfect Medium student learns 4 of 10 cards in 12 days ([decision 0026](decisions/0026-task6-scheduler-choices.md)). Use courses of about four weeks or more, or accept `completed_progress` below 100.
 - **Frozen cards:** after `start_course` a typo cannot be fixed ([decision 0016](decisions/0016-flashcards-frozen-after-start.md)); check every card with its correct option before starting.
+- **Image cards ([decision 0034](decisions/0034-image-cards-stage-b.md)):** every card takes about 2 s to send (upload, a 0.5 s wait, the post), one after another: about 30 minutes for 1,000 students at a start or a tick. If the image cannot be shown, the student silently gets the text card (the log says `image unavailable`). Questions are limited to 500 characters of Latin, Cyrillic or Greek text (no emoji, Arabic, Hebrew or Asian scripts). Unverified live: whether `files:read` is needed, `chat.update` with the image kept, and file id reuse (one upload per delivery).
 - **Double cards:** if a Slack post succeeds but recording its timestamp fails, a student can get a card twice ([decision 0027](decisions/0027-task6b1-tick-choices.md)).
 - **`scheduled_start_at` starts nothing**; the teacher calls `start_course`.
 - **Unverified against real Slack:** wrong answer and "Don't know", double click, the 3-second ack, 429 and outage behaviour, the tick, the stop DM ([slack/live-run.md](slack/live-run.md)). Run those in the pilot with yourself as the student first.

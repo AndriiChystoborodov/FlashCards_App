@@ -48,17 +48,17 @@ async function world(deps?: (d: Awaited<ReturnType<typeof harness>>['deps']) => 
 
   const calls: string[] = [];
   const respond = vi.fn(async (_m: Sent) => void calls.push('respond'));
-  const click = async (slackId: string, actionId: string, value: unknown, ts?: string) => {
+  const click = async (slackId: string, actionId: string, value: unknown, ts?: string, blocks?: unknown[]) => {
     const ack = vi.fn(async () => void calls.push('ack'));
     const route = routes.find((r) => r.pattern.test(actionId));
     if (!route) throw new Error(`no route for ${actionId}`);
     const action = (value === undefined ? { action_id: actionId } : { action_id: actionId, value }) as ClickArgs['action'];
-    await route.handler({ ack, action, body: { user: { id: slackId }, ...(ts && { message: { ts } }) }, respond });
+    await route.handler({ ack, action, body: { user: { id: slackId }, ...((ts || blocks) && { message: { ...(ts && { ts }), ...(blocks && { blocks }) } }) }, respond });
     return ack;
   };
-  const answer = (slackId: string, option: number | null, cardId: string, ts?: string) =>
-    click(slackId, option === null ? 'answer_dont_know' : `answer_${option + 1}`, JSON.stringify({ c: cardId, o: option }), ts);
-  const rate = (slackId: string, option: number, r: string, cardId: string, ts?: string) => click(slackId, `rate_${r}`, JSON.stringify({ c: cardId, o: option, r }), ts);
+  const answer = (slackId: string, option: number | null, cardId: string, ts?: string, blocks?: unknown[]) =>
+    click(slackId, option === null ? 'answer_dont_know' : `answer_${option + 1}`, JSON.stringify({ c: cardId, o: option }), ts, blocks);
+  const rate = (slackId: string, option: number, r: string, cardId: string, ts?: string, blocks?: unknown[]) => click(slackId, `rate_${r}`, JSON.stringify({ c: cardId, o: option, r }), ts, blocks);
   const reviewsOf = (userId: string) => db.select().from(reviews).where(eq(reviews.userId, userId));
   const last = () => respond.mock.calls.at(-1)![0];
   return { h, tom, courseId, cardIds, ann, person, latest, click, answer, rate, reviewsOf, respond, calls, last, routes };
@@ -296,5 +296,58 @@ describe('Slack handlers on the real services (FakeSlack)', () => {
     await w.h.api.call(w.tom, 'DELETE', `/courses/${w.courseId}/students/${w.ann.userId}`);
     await w.answer(w.ann.slackId, 0, c.cardId, c.ts);
     expect(JSON.stringify(w.last())).not.toContain('rate_');
+  });
+
+  describe('image cards: the image is kept or dropped on replace (decision 0034)', () => {
+    // What Slack puts in body.message.blocks of a clicked image card: id AND url in slack_file (only the id may be sent back).
+    const imageBlocks = (extra: object = {}) => [{ type: 'image', slack_file: { id: 'F123', url: 'https://files.slack.test/secret-url' }, alt_text: 'Q1 on the image', ...extra }, { type: 'section' }, { type: 'actions' }];
+    const kinds = (m: Sent) => (m.blocks as { type: string }[]).map((b) => b.type);
+
+    it('the rating prompt and the right-answer outcome keep the image, sending only the file id', async () => {
+      const w = await world();
+      const c = w.latest(w.ann.slackId);
+      await w.answer(w.ann.slackId, 0, c.cardId, c.ts, imageBlocks());
+      expect(kinds(w.last())).toEqual(['image', 'section', 'actions']);
+      expect(w.last().blocks![0]).toEqual({ type: 'image', slack_file: { id: 'F123' }, alt_text: 'Q1 on the image' });
+      expect(JSON.stringify(w.last())).not.toContain('secret-url');
+      await w.rate(w.ann.slackId, 0, 'easy', c.cardId, c.ts, imageBlocks());
+      expect(kinds(w.last())).toEqual(['image', 'section']);
+      expect(w.last().text).toBe('Thanks. You rated it Easy.');
+    });
+
+    it('the wrong-answer outcome keeps the image and shows the right answer', async () => {
+      const w = await world();
+      const c = w.latest(w.ann.slackId);
+      await w.answer(w.ann.slackId, 1, c.cardId, c.ts, imageBlocks());
+      expect(kinds(w.last())).toEqual(['image', 'section']);
+      expect(w.last().text).toMatch(/^Not quite/);
+    });
+
+    it('a text card (no image block) is replaced exactly as before', async () => {
+      const w = await world();
+      const c = w.latest(w.ann.slackId);
+      await w.answer(w.ann.slackId, 1, c.cardId, c.ts, [{ type: 'section' }, { type: 'actions' }]);
+      expect(kinds(w.last())).toEqual(['section']);
+    });
+
+    it('a url-only slack_file is sent back as the url; an unreadable one is dropped with a logged code', async () => {
+      const w = await world();
+      const c = w.latest(w.ann.slackId);
+      await w.answer(w.ann.slackId, 0, c.cardId, c.ts, [{ type: 'image', slack_file: { url: 'https://files.slack.test/x' }, alt_text: 'a' }]);
+      expect(w.last().blocks![0]).toEqual({ type: 'image', slack_file: { url: 'https://files.slack.test/x' }, alt_text: 'a' });
+      await w.answer(w.ann.slackId, 0, c.cardId, c.ts, [{ type: 'image', alt_text: 'a' }]);
+      expect(kinds(w.last())).toEqual(['section', 'actions']);
+      expect(warn.mock.calls.flat().join(' ')).toContain('image_ref_unreadable');
+    });
+
+    it('a refusal (sent again, removed, over, already answered) replaces with text only and drops the image', async () => {
+      const w = await world();
+      const c = w.latest(w.ann.slackId);
+      await w.answer(w.ann.slackId, 0, '00000000-0000-4000-8000-000000000000', c.ts, imageBlocks()); // not the open card
+      expect(kinds(w.last())).toEqual(['section']);
+      await w.answer(w.ann.slackId, 0, c.cardId, '0.0', imageBlocks()); // an older message: sent again
+      expect(w.last().text).toBe(REJECT_TEXT.sent_again);
+      expect(kinds(w.last())).toEqual(['section']);
+    });
   });
 });

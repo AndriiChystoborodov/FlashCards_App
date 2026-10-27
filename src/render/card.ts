@@ -1,7 +1,7 @@
 import { GlobalFonts, createCanvas } from '@napi-rs/canvas';
 import { fileURLToPath } from 'node:url';
 import { CARD, layoutText, type Measure } from './layout.js';
-import { validateQuestion, type QuestionError } from './validate.js';
+import { validateQuestion, type QuestionError, type Validated } from './validate.js';
 
 /** Own family name: a system font called Inter must never be picked up instead. */
 const FAMILY = 'RetainInter';
@@ -25,6 +25,23 @@ export interface CardImage {
 }
 
 export type RenderResult = ({ ok: true } & CardImage) | { ok: false; code: QuestionError };
+
+function measurer() {
+  registerFont();
+  const ctx = createCanvas(1, 1).getContext('2d');
+  const measure: Measure = (text, size) => {
+    ctx.font = `${size}px ${FAMILY}`;
+    return ctx.measureText(text).width;
+  };
+  return measure;
+}
+
+/** `validateQuestion` plus the measured fit (a text can pass the 500 limit and still not fit at the smallest font). The REST layer calls this; nothing is drawn. */
+export function checkQuestion(raw: string): Validated {
+  const v = validateQuestion(raw);
+  if (!v.ok) return v;
+  return layoutText(v.text, measurer()) ? v : { ok: false, code: 'question_too_long' };
+}
 
 /** Draws the question on a white 1200x630 PNG: validate, shrink to fit, draw. The same input gives the same bytes on one machine (platform equality is not claimed). */
 export function renderCard(rawQuestion: string): RenderResult {

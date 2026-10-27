@@ -54,7 +54,7 @@ Checked in a throwaway install on 2026-10-26 and used as built: `McpServer` and 
 
 Only rules a model would guess wrong, one line each; the REST API stays the authority and its error comes back with the code.
 
-- `add_flashcards`: 1 to 100 cards per call; 2 to 9 options; `correct_option` is 0-based; question plus options at most 2,900 characters; question and options can never be edited; `is_assessment` only while the course is a draft (`assessment_closed`); finished course refuses (`course_finished`).
+- `add_flashcards`: 1 to 100 cards per call; 2 to 9 options; `correct_option` is 0-based; question at most 500 characters (it is drawn on an image: plain text, Latin with umlauts, Cyrillic including Ukrainian, Greek; no emoji, Arabic, Hebrew or Asian scripts; refusals `question_too_long`, `unsupported_character`, `empty_question`), question plus options at most 2,900 characters; question and options can never be edited; `is_assessment` only while the course is a draft (`assessment_closed`); finished course refuses (`course_finished`).
 - `update_course`: at least one field; an active course locks the threshold (`threshold_locked`, even the same value) and only lets `ends_at` move later (`ends_at_shortened`); finished is read-only (`course_finished`). `ends_at` is ISO 8601 with a zone.
 - `update_flashcard`, `delete_flashcard`: "DRAFT COURSES ONLY" ([decision 0016](decisions/0016-flashcards-frozen-after-start.md)); an error from a running course comes back as `isError` with `course_not_draft`.
 - `enroll_students`: up to 500; `slack_matched: false` means no cards; on a running course the first card goes out at once; a student removed less than 14 days ago is restored.
@@ -123,7 +123,7 @@ The REST API must be running (`npm run dev`, or `npm run api` for tries without 
 - `list_students`, `get_class_progress` and `list_flashcards` return the whole list as one JSON text; a class of hundreds of students gives a large result. No pagination now (the REST API has none).
 - Only stdio with one token; the remote server over Streamable HTTP is later ([decision 0007](decisions/0007-mcp-stdio-thin-client.md)).
 - `confirmed` makes the model ask, but a determined or confused model can still set it. The user's client approval is the real gate.
-- The schemas repeat the REST limits by hand; a change in `src/api/schemas.ts` needs the same change in `src/mcp/tools.ts` (the API stays the authority and answers `invalid_request`). The 2,900-character rule is only in the description and checked by the API.
+- The schemas repeat the REST limits by hand; a change in `src/api/schemas.ts` needs the same change in `src/mcp/tools.ts` (the API stays the authority and answers `invalid_request`). The 2,900-character rule and the 500-character image rule are only in the descriptions and checked by the API.
 
 ## Auth to the REST API
 

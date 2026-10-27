@@ -10,6 +10,8 @@ import {
   buildRatingMessage,
   buildRejectionMessage,
   buildWrongMessage,
+  imageOfBlocks,
+  withImage,
   type CardMessage,
   type Rating,
 } from './card.js';
@@ -37,7 +39,7 @@ export interface ClickArgs {
   ack: () => Promise<unknown>;
   action: { action_id: string };
   /** `message.ts` is the Slack message the button is on. */
-  body: { user: { id: string }; message?: { ts?: string } };
+  body: { user: { id: string }; message?: { ts?: string; blocks?: readonly unknown[] } };
   respond: (message: { text: string; blocks?: CardMessage['blocks']; replace_original: boolean; response_type?: 'ephemeral' }) => Promise<unknown>;
 }
 
@@ -46,6 +48,19 @@ export interface ActionRouter {
 }
 
 const replace = (respond: ClickArgs['respond'], m: CardMessage) => respond({ ...m, replace_original: true });
+
+/**
+ * The image of an image card is kept on the rating prompt and the outcome by sending its file id back (decision 0034; the spike showed
+ * that a response_url replacement WITH the same slack_file block keeps the image and one without it removes it). The id is read from the
+ * clicked message. Text cards have no image block; if an image block's file cannot be read, the replacement is text only and the
+ * image is dropped (known limit, logged as a code). Refusals (`reject`) always replace with text only.
+ */
+function keepImage(a: ClickArgs, m: CardMessage): CardMessage {
+  const blocks = a.body.message?.blocks;
+  const image = imageOfBlocks(blocks);
+  if (!image && blocks?.some((b) => typeof b === 'object' && b !== null && (b as { type?: unknown }).type === 'image')) console.warn('image dropped on replace: image_ref_unreadable');
+  return withImage(m, image);
+}
 
 /** Only ids and codes are logged: never the payload, the value or a token. An error is logged by name, since driver messages carry query parameters. */
 const errName = (e: unknown) => (e instanceof Error ? e.name : 'unknown');
@@ -70,7 +85,7 @@ export function registerHandlers(app: ActionRouter, deps: SchedulerDeps): void {
     if (result.status === 'duplicate') return; // the click that won already replaced the message
     if (result.status === 'rejected') return reject(a, result.reason);
     const card = (await getFlashcard(deps.db, flashcardId))!;
-    await replace(a.respond, result.review.isCorrect && rating ? buildRatedMessage(rating) : buildWrongMessage(card, result.materialUrl));
+    await replace(a.respond, keepImage(a, result.review.isCorrect && rating ? buildRatedMessage(rating) : buildWrongMessage(card, result.materialUrl)));
     try {
       await afterAnswer(deps, userId, card.courseId, result);
     } catch (err) {
@@ -105,7 +120,7 @@ export function registerHandlers(app: ActionRouter, deps: SchedulerDeps): void {
       const first = await previewAnswer(deps, { userId, flashcardId: v.c, chosenOption: v.o, ...(messageTs && { messageTs }) });
       if (first.status === 'rejected') return reject(click, first.reason);
       // A right answer waits for its rating and stores nothing (H5); wrong and "Don't know" are final at once (H7).
-      if (first.isCorrect) return void (await replace(click.respond, buildRatingMessage({ id: v.c }, v.o!)));
+      if (first.isCorrect) return void (await replace(click.respond, keepImage(click, buildRatingMessage({ id: v.c }, v.o!))));
       await settle(click, userId, v.c, v.o);
     })(a);
   });

@@ -15,8 +15,8 @@ import { submitAnswer } from '../src/services/answer.js';
 import { issueTeacherToken } from '../src/services/auth.js';
 import { afterAnswer, sendNext, TEXT } from '../src/services/scheduler.js';
 import { runTick } from '../src/services/tick.js';
-import { FakeSlack } from '../src/slack/fake.js';
-import { REJECT_TEXT } from '../src/slack/card.js';
+import { FakeSlack, type PostedMessage } from '../src/slack/fake.js';
+import { REJECT_TEXT, escapeMrkdwn } from '../src/slack/card.js';
 import { registerHandlers, type ClickArgs } from '../src/slack/handlers.js';
 import { buildTrace, type TraceInput } from '../src/report/trace.js';
 import { Client } from '@modelcontextprotocol/client';
@@ -35,6 +35,14 @@ const TABLES = (Object.values(schema) as unknown[])
   .map((t) => getTableName(t))
   .sort();
 const at = (iso: string) => new Date(iso);
+
+/** A card posted through the scheduler carries its image: a 1200x630 PNG whose alt text is the question shown in the message text. */
+function assertCardImage(p: PostedMessage): void {
+  assert.ok(p.image, 'the card was posted without an image');
+  assert.deepEqual([p.image.width, p.image.height], [1200, 630]);
+  assert.equal(p.image.png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.ok(p.message.text.startsWith(`Q: ${escapeMrkdwn(p.image.alt)}\n`));
+}
 const clock = createControlledClock(at('2026-01-05T09:00:00Z')); // Monday 5 January 10:00 Zurich, walkthrough section 1
 const { db, pool } = createDb(url);
 const slack = new FakeSlack();
@@ -232,6 +240,9 @@ const steps: Step[] = [
       assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.message.text), [TEXT.started, TEXT.started]);
       for (const u of [ids.ann, ids.bea]) assert.equal((await getOpenCard(db, u, ids.course))?.flashcardId, A(1));
       assert.match(slack.posted[2]!.message.text, /^Q: Q1\n1\. right/);
+      // Decision 0034: a card goes out with its image (1200x630, the question as alt); the course-start text goes without one.
+      assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.image), [undefined, undefined]);
+      for (const p of slack.posted.slice(2)) assertCardImage(p);
       assert.match(await mcp.error('start_course', { course_id: ids.course, confirmed: true }), /^course_not_draft: /);
       assert.equal(slack.posted.length, 4); // repeating sends nothing: the cards are open
     },
@@ -385,6 +396,7 @@ const steps: Step[] = [
       assert.equal(after?.sentAt?.getTime(), claim.sentAt?.getTime());
       assert.equal(after?.messageTs, slack.posted.at(-1)?.ts);
       assert.equal(slack.posted.length, posts + 1);
+      assertCardImage(slack.posted.at(-1)!); // the stale-claim re-send carries the image too
     },
   },
   {

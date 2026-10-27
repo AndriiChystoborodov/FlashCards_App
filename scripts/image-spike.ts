@@ -145,7 +145,8 @@ async function inspect(id: string, label: string): Promise<void> {
     const file = info.file as Record<string, unknown> | undefined;
     if (typeof file?.url_private === 'string') lastUrl = file.url_private;
     console.log(`  files.info (${label}): ${JSON.stringify(describeFile(file))}`);
-    if (file && file.mimetype !== 'image/png') console.log(`  !! mimetype is ${String(file.mimetype)}, not image/png: Slack may not treat it as an image`);
+    // Verified in the first live run: empty mimetype/filetype and no thumbnails right after the upload mean "not processed yet", not a wrong type.
+    if (file && !file.mimetype && !file.filetype) console.log('  (mimetype and filetype are empty: the file is not processed yet)');
   } catch (err) {
     console.log(`  files.info (${label}) FAILED: ${why(err)}${slackCode(err) === 'missing_scope' ? ' (files.info needs files:read)' : ''}`);
   }
