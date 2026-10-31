@@ -253,7 +253,7 @@ describe('stale-claim recovery: races and ended courses', () => {
     expect(w.slack.posted).toHaveLength(0);
     // runTick finishes the course first: it re-posts nothing; the only message is the course-ended DM.
     expect(await runTick(w.deps, w.cfg)).toEqual({ sent: 0, resent: 0, failed: 0 });
-    expect(w.slack.posted.map((p) => p.message.text)).toEqual(['The course has ended. Your final progress is 0%.']);
+    expect(w.slack.posted.map((p) => p.message.text)).toEqual(['The course "C" has ended. Your final progress is 0%.']);
     expect((await getCardState(db, w.studentId, w.cardIds[0]!))?.messageTs).toBeNull();
   });
 });

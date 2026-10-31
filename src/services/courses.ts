@@ -64,7 +64,9 @@ export async function patchCourse(deps: SchedulerDeps, teacherId: string, course
 /** draft to active; a DM to every present active student, then the first assessment card at once (integration.md). */
 export async function startCourse(deps: SchedulerDeps, teacherId: string, courseId: string): Promise<CourseWithCounts> {
   const now = deps.clock.now();
+  let title = '';
   await locked(deps, teacherId, courseId, async (tx, course) => {
+    title = course.title;
     if (course.status !== 'draft') throw new ServiceError('course_not_draft', 'Only a draft course can be started.');
     if (course.endsAt <= now) throw new ServiceError('ends_at_passed', 'The end date is in the past; move it with PATCH first.');
     if ((await countCards(tx, courseId)) === 0) throw new ServiceError('no_cards', 'Add at least one flashcard before starting.');
@@ -73,7 +75,7 @@ export async function startCourse(deps: SchedulerDeps, teacherId: string, course
   for (const e of await listPresentEnrollments(deps.db, courseId)) {
     if (e.status !== 'active') continue;
     try {
-      await dm(deps, e.userId, TEXT.started);
+      await dm(deps, e.userId, TEXT.started(title));
     } catch (err) {
       console.error(`start message for user ${e.userId} failed`, errText(err));
     }

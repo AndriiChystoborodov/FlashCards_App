@@ -42,7 +42,7 @@ npm run demo:seed -- you@company.com 3    # terminal 2: demo course, enrolls you
 
 ## What to expect
 
-- Slack DM from the bot: "A new course has started for you. Your first card follows.", then the first assessment card with buttons 1 to 3 and "Don't know". Terminal 1 prints `click user=... action_id=...` for every click (no values, no tokens).
+- Slack DM from the bot: "The course \"<title>\" has started for you. Your first card follows.", then the first assessment card with buttons 1 to 3 and "Don't know". Terminal 1 prints `click user=... action_id=...` for every click (no values, no tokens).
 - Right answer: "Right. How hard was it?" with Hard / Medium / Easy; after the rating "Thanks. You rated it ...", then the next card as a new message.
 - Wrong answer or "Don't know": "Not quite. The right answer is N: ..." with the material link, then the next card.
 - The second click on an answered card: "This card was already answered."

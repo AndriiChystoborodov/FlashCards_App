@@ -117,6 +117,10 @@ Run on the local Postgres from `docker-compose.yml` ([decision 0022](decisions/0
 | S15 | course not active or enrollment not active | no sends |
 | S16 | all cards learned | enrollment `completed` once, `completed_at` and `completed_progress` (100) stored |
 | S28 | `ends_at` reached with 6 of 10 cards learned | `completed`, `completed_progress` 60, no cards sent afterwards, course `finished` |
+| S28a | catch-up finish 24 hours and 1 minute after `ends_at` ([decision 0035](decisions/0035-course-titles-and-catch-up-dm.md)) | enrollment `completed`, course `finished`, the open card replaced with text only, no "course ended" DM |
+| S28b | catch-up finish exactly 24 hours after `ends_at` | the DM is sent: `The course "C" has ended. Your final progress is 0%.` |
+| S28c | `finishCourse` without catch-up (a stop) long after `ends_at` | the DM is always sent |
+| S28d | a finished course | one log line `course <id> finished: completed=N replaced=M failed=K`; a failed DM counts as failed; a second finish logs nothing |
 | S29 | completed student, cards added to the course | stays `completed`, progress still 60 |
 | S30 | exempt student at `ends_at` | stays `exempt`, progress 100 |
 | S31 | click on an open card after completion | "the course is over", no review stored |

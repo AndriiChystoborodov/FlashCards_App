@@ -13,7 +13,7 @@ import { getUser, setDmChannel } from '../db/users.js';
 import { endOfLocalDay, localDaysThrough, startOfLocalDayOf } from '../domain/localDay.js';
 import { quotaToday } from '../domain/quota.js';
 import { renderCard } from '../render/card.js';
-import { buildCardMessage, textOnly } from '../slack/card.js';
+import { buildCardMessage, escapeMrkdwn, textOnly } from '../slack/card.js';
 import { CardImageError, type CardImage, type SlackPort } from '../slack/port.js';
 import type { AnswerResult } from './answer.js';
 import { errText } from './logError.js';
@@ -31,12 +31,15 @@ export type SendResult = { status: 'sent'; flashcardId: string; kind: NextCard['
 
 type User = typeof users.$inferSelect;
 
+/** The DMs that name a course carry its title (decision 0035); the title is teacher text, so it is escaped for Slack's mrkdwn. */
+const named = (title: string) => `"${escapeMrkdwn(title)}"`;
+
 export const TEXT = {
-  exempt: 'You already know this material, so there are no more cards for this course.',
-  completed: 'Congratulations, you have learned every card of this course.',
-  ended: (progress: number) => `The course has ended. Your final progress is ${Math.round(progress)}%.`,
+  exempt: (title: string) => `You already know this material, so there are no more cards for the course ${named(title)}.`,
+  completed: (title: string) => `Congratulations, you have learned every card of the course ${named(title)}.`,
+  ended: (title: string, progress: number) => `The course ${named(title)} has ended. Your final progress is ${Math.round(progress)}%.`,
   expired: 'The course is over.',
-  started: 'A new course has started for you. Your first card follows.',
+  started: (title: string) => `The course ${named(title)} has started for you. Your first card follows.`,
   restored: 'You are enrolled in this course again. Your progress is kept.',
   removed: 'expired',
 };
@@ -203,7 +206,7 @@ export async function completeIfLearned(deps: SchedulerDeps, userId: string, cou
     if (total === 0 || (await countLearned(tx, userId, courseId)) !== total) return false;
     return completeEnrollment(tx, courseId, userId, { at: now, progress: 100 });
   });
-  if (done) await dm(deps, userId, TEXT.completed);
+  if (done) await dm(deps, userId, TEXT.completed((await getCourse(deps.db, courseId))?.title ?? ''));
   return done;
 }
 
@@ -214,24 +217,30 @@ export async function completeIfLearned(deps: SchedulerDeps, userId: string, cou
 export async function afterAnswer(deps: SchedulerDeps, userId: string, courseId: string, result: AnswerResult): Promise<SendResult> {
   if (result.status !== 'answered') return { status: 'none' };
   if (result.assessment?.exempt) {
-    await dm(deps, userId, TEXT.exempt);
+    await dm(deps, userId, TEXT.exempt((await getCourse(deps.db, courseId))?.title ?? ''));
     return { status: 'none' };
   }
   if (await completeIfLearned(deps, userId, courseId)) return { status: 'none' };
   return sendNext(deps, userId, courseId);
 }
 
+/** A catch-up pass (the tick finishing a course whose `ends_at` has passed) sends the "course ended" DM only if `ends_at` is at most this old (decision 0035). */
+export const ENDED_DM_MAX_AGE_MS = 24 * 3_600_000;
+
 /**
  * Ends the course (decision 0011): every present `active` enrollment becomes `completed` with its progress frozen, the course
  * becomes `finished`, students get the final progress and an open card's message is replaced. `exempt` and removed
- * enrollments are left alone. The tick (6b-1) calls `finishEndedCourses`; stop (Task 7) calls this.
+ * enrollments are left alone. The tick (6b-1) calls `finishEndedCourses` with `catchUp`; stop (Task 7) calls this without it.
+ * A catch-up finish of a course that ended more than `ENDED_DM_MAX_AGE_MS` ago still completes the enrollments and replaces
+ * the open cards, but sends no DM (the student would get a message about a course long gone). One log line per finished course.
  */
-export async function finishCourse(deps: SchedulerDeps, courseId: string): Promise<{ completed: string[] }> {
+export async function finishCourse(deps: SchedulerDeps, courseId: string, opts: { catchUp?: boolean } = {}): Promise<{ completed: string[] }> {
   const now = deps.clock.now();
-  const { completed, open } = await deps.db.transaction(async (tx) => {
-    if (!(await markCourseFinished(tx, courseId))) return { completed: [] as { userId: string; progress: number }[], open: [] as { channel: string; ts: string }[] };
+  const { finished, completed, open, title, notify } = await deps.db.transaction(async (tx) => {
+    const course = await getCourse(tx, courseId);
     const completed: { userId: string; progress: number }[] = [];
     const open: { channel: string; ts: string }[] = [];
+    if (!course || !(await markCourseFinished(tx, courseId))) return { finished: false, completed, open, title: '', notify: false };
     for (const e of await listPresentEnrollments(tx, courseId)) {
       if (e.status !== 'active') continue;
       const progress = await progressOf(tx, e.userId, courseId);
@@ -240,22 +249,31 @@ export async function finishCourse(deps: SchedulerDeps, courseId: string): Promi
       const card = await getOpenCard(tx, e.userId, courseId);
       if (card?.messageChannel && card.messageTs) open.push({ channel: card.messageChannel, ts: card.messageTs });
     }
-    return { completed, open };
+    const notify = !opts.catchUp || now.getTime() - course.endsAt.getTime() <= ENDED_DM_MAX_AGE_MS;
+    return { finished: true, completed, open, title: course.title, notify };
   });
+  let replaced = 0;
+  let failed = 0;
   for (const o of open) {
     try {
       await deps.slack.replaceMessage(o.channel, o.ts, textOnly(TEXT.expired));
+      replaced += 1;
     } catch (err) {
+      failed += 1;
       console.error('replacing the open card message failed', errText(err));
     }
   }
-  for (const c of completed) {
-    try {
-      await dm(deps, c.userId, TEXT.ended(c.progress));
-    } catch (err) {
-      console.error(`course-ended message for user ${c.userId} failed`, errText(err));
+  if (notify) {
+    for (const c of completed) {
+      try {
+        await dm(deps, c.userId, TEXT.ended(title, c.progress));
+      } catch (err) {
+        failed += 1;
+        console.error(`course-ended message for user ${c.userId} failed`, errText(err));
+      }
     }
   }
+  if (finished) console.log(`course ${courseId} finished: completed=${completed.length} replaced=${replaced} failed=${failed}`);
   return { completed: completed.map((c) => c.userId) };
 }
 
@@ -264,7 +282,7 @@ export async function finishEndedCourses(deps: SchedulerDeps, only?: string[]): 
   const ids = (await listEndedCourseIds(deps.db, deps.clock.now())).filter((id) => !only || only.includes(id));
   for (const id of ids) {
     try {
-      await finishCourse(deps, id);
+      await finishCourse(deps, id, { catchUp: true });
     } catch (err) {
       console.error(`finishing course ${id} failed`, errText(err));
     }

@@ -49,8 +49,8 @@ const slack = new FakeSlack();
 // The API trace (decision 0032). SCENARIO_TRACE=off runs without any recorder, to show the steps and table deltas are the same either way.
 const rec = process.env.SCENARIO_TRACE === 'off' ? null : createRecorder({ clock });
 const deps = { db, clock, tenantTimezone: env.TENANT_TIMEZONE, slack: rec ? rec.slack(slack) : slack };
-const FAKE_SLACK_IDS = ['UANN', 'UBEA', 'UCY', 'UDEE', 'UEVE', 'UNOBODY'];
-const FAKE_EMAILS = ['tom@x.test', 'ann@x.test', 'bea@x.test', 'cy@x.test', 'dee@x.test', 'eve@x.test'];
+const FAKE_SLACK_IDS = ['UANN', 'UBEA', 'UCY', 'UDEE', 'UEVE', 'UGIL', 'UHANA', 'UNOBODY'];
+const FAKE_EMAILS = ['tom@x.test', 'ann@x.test', 'bea@x.test', 'cy@x.test', 'dee@x.test', 'eve@x.test', 'gil@x.test', 'hana@x.test'];
 const BAD_TOKEN = 'x'.repeat(43);
 const secretValues = [env.SLACK_BOT_TOKEN, env.SLACK_APP_TOKEN, env.SLACK_SIGNING_SECRET, url, BAD_TOKEN].filter((v): v is string => !!v);
 if (rec) {
@@ -237,7 +237,7 @@ const steps: Step[] = [
       assert.equal(started.status, 'active');
       assert.equal(started.starts_at, '2026-01-05T09:00:00.000Z');
       assert.equal(slack.posted.length, 4); // the start message, then A1, for each student
-      assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.message.text), [TEXT.started, TEXT.started]);
+      assert.deepEqual(slack.posted.slice(0, 2).map((p) => p.message.text), [TEXT.started('Security basics'), TEXT.started('Security basics')]);
       for (const u of [ids.ann, ids.bea]) assert.equal((await getOpenCard(db, u, ids.course))?.flashcardId, A(1));
       assert.match(slack.posted[2]!.message.text, /^Q: Q1\n1\. right/);
       // Decision 0034: a card goes out with its image (1200x630, the question as alt); the course-start text goes without one.
@@ -315,7 +315,7 @@ const steps: Step[] = [
       assert.equal(e.assessmentScore, 100);
       assert.equal(iso(e.assessmentDoneAt), '2026-01-05T13:05:00.000Z');
       assert.equal(await getOpenCard(db, ids.bea, ids.course), null);
-      assert.equal(slack.posted.at(-1)?.message.text, TEXT.exempt);
+      assert.equal(slack.posted.at(-1)?.message.text, TEXT.exempt('Security basics'));
       assert.deepEqual(await sendNext(deps, ids.bea, ids.course), { status: 'none' });
     },
   },
@@ -471,7 +471,7 @@ const steps: Step[] = [
       assert.equal(ann.completedProgress, learned * 10);
       console.log(`     (real scenario outcome: Ann learned ${learned} of 10, completed_progress ${ann.completedProgress})`);
       assert.equal((await enrollmentOf(ids.bea)).status, 'exempt');
-      assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended(ann.completedProgress ?? 0));
+      assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended('Security basics', ann.completedProgress ?? 0));
       const [c] = await db.select().from(schema.courses).where(eq(schema.courses.id, ids.course));
       assert.equal(c!.status, 'finished');
       assert.deepEqual(await sendNext(deps, ids.ann, ids.course), { status: 'none' });
@@ -514,7 +514,7 @@ const steps: Step[] = [
       assert.deepEqual(after.map((s: { status: string }) => s.status), ['completed']);
       assert.equal((await enrollmentOf(cy)).completedProgress, 0);
       assert.equal(slack.posted.length, posts + 1);
-      assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended(0));
+      assert.equal(slack.posted.at(-1)?.message.text, TEXT.ended('Phishing', 0));
       assert.equal(slack.replaced.at(-1)?.ts, cyCard?.messageTs); // Cy's open card is closed
       assert.match(await mcp.error('stop_course', { course_id: c.course_id, confirmed: true }), /^course_not_active: /);
     },
@@ -554,6 +554,37 @@ const steps: Step[] = [
       await click('UNOBODY');
       assert.equal(shown.at(-1), REJECT_TEXT.not_enrolled);
       assert.equal((await db.select().from(schema.reviews).where(eq(schema.reviews.userId, eve))).length, 1);
+    },
+  },
+  {
+    name: 'catch-up (decision 0035): the tick finishes two courses whose ends_at passed while nobody ran it; the one that ended 49 hours ago completes its student and closes the open card without a DM, the one that ended 1 hour ago also sends "The course ... has ended"',
+    run: async () => {
+      slack.directory.set('gil@x.test', { slackId: 'UGIL', tz: 'Europe/Zurich' });
+      slack.directory.set('hana@x.test', { slackId: 'UHANA', tz: 'Europe/Zurich' });
+      clock.set(at('2026-01-20T09:00:00Z'));
+      const make = async (title: string, endsAt: string, email: string, name: string) => {
+        const c = await rest('POST', '/courses', { title, material_url: 'https://wiki.example.com/late', ends_at: endsAt }, 201);
+        await rest('POST', `/courses/${c.course_id}/flashcards`, { flashcards: [{ question: 'L1', options: ['right', 'x'], correct_option: 0, is_assessment: false }] }, 201);
+        await rest('POST', `/courses/${c.course_id}/students`, { students: [{ email, name }] });
+        await rest('POST', `/courses/${c.course_id}/start`);
+        const student = ((await rest('GET', `/courses/${c.course_id}/students`)).students as { student_id: string }[])[0]!.student_id;
+        const open = await getOpenCard(db, student, c.course_id);
+        assert.ok(open?.messageTs, `${name} has an open card`);
+        return { id: c.course_id as string, student, ts: open.messageTs };
+      };
+      const old = await make('Late A', '2026-01-21T10:00:00Z', 'gil@x.test', 'Gil'); // ends 2026-01-21 10:00
+      const recent = await make('Late B', '2026-01-23T10:00:00Z', 'hana@x.test', 'Hana'); // ends 2026-01-23 10:00
+      clock.set(at('2026-01-23T11:00:00Z')); // nobody ran the tick: A ended 49 hours ago, B 1 hour ago
+      const posts = slack.posted.length;
+      const replaced = slack.replaced.length;
+      await within({ origin: 'tick', caller: 'tick' }, 'runTick', () => runTick(deps, { ...TICK, courseIds: [old.id, recent.id] }), (r) => r);
+      for (const x of [old, recent]) {
+        assert.equal((await db.select().from(schema.courses).where(eq(schema.courses.id, x.id)))[0]!.status, 'finished');
+        assert.equal((await db.select().from(schema.enrollments).where(eq(schema.enrollments.userId, x.student)))[0]!.status, 'completed');
+      }
+      assert.deepEqual(slack.replaced.slice(replaced).map((r) => [r.ts, r.message.text]).sort(), [[old.ts, TEXT.expired], [recent.ts, TEXT.expired]].sort()); // both open cards are closed, text only
+      const dms = slack.posted.slice(posts).map((p) => p.message.text);
+      assert.deepEqual(dms, [TEXT.ended('Late B', 0)]); // only the recent course sends the DM; Late A's is older than 24 hours
     },
   },
 ];

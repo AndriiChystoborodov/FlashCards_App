@@ -31,7 +31,7 @@ npm run scenario:compare -- --accept   # replaces the baseline on purpose; revie
 npm run scenario:parity     # runs the scenario twice (recorder off, then on) and compares the ok lines and table deltas
 ```
 
-The final line of a good run is `23 ok, 1 pending`. What is recorded, how ids, emails, names, Slack ids and tokens become aliases, where the recorder hooks in, why REST bodies are stored as shapes in the baseline, and what ran against real Postgres versus what is only recorded by wrappers: [decision 0032](decisions/0032-api-trace-and-baseline.md).
+The final line of a good run is `24 ok, 1 pending` (step 24 is the catch-up rule of [decision 0035](decisions/0035-course-titles-and-catch-up-dm.md): two courses whose `ends_at` passed while nobody ran the tick). What is recorded, how ids, emails, names, Slack ids and tokens become aliases, where the recorder hooks in, why REST bodies are stored as shapes in the baseline, and what ran against real Postgres versus what is only recorded by wrappers: [decision 0032](decisions/0032-api-trace-and-baseline.md).
 
 | part | what |
 | --- | --- |

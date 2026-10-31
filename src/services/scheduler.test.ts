@@ -122,7 +122,7 @@ describe('selection: next() and sendNext()', () => {
     const { sent } = await reply(w, 0, 'easy');
     expect(sent).toEqual({ status: 'none' });
     expect((await enrollmentOf(w.studentId)).status).toBe('exempt');
-    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.exempt);
+    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.exempt('C'));
     w.clock.advanceDays(3);
     expect(await sendNext(w.deps, w.studentId, w.courseId)).toEqual({ status: 'none' });
     expect(await next(w.deps, w.studentId, w.courseId)).toBeNull();
@@ -446,7 +446,7 @@ describe('completion', () => {
     const e = await enrollmentOf(w.studentId);
     expect(e).toMatchObject({ status: 'completed', completedProgress: 100 });
     expect(e.completedAt).toEqual(w.clock.now());
-    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.completed);
+    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.completed('C'));
     expect(await sendNext(w.deps, w.studentId, w.courseId)).toEqual({ status: 'none' });
   });
 
@@ -465,11 +465,66 @@ describe('completion', () => {
     expect(e.completedAt).toEqual(w.clock.now());
     const [c] = await db.select().from(courses).where(eq(courses.id, w.courseId));
     expect(c!.status).toBe('finished');
-    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.ended(60));
+    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.ended('C', 60));
     expect(w.slack.replaced).toHaveLength(1); // the open card's message
     expect(w.slack.replaced[0]).toMatchObject({ channel: (open as { channel: string }).channel, ts: (open as { ts: string }).ts });
     expect(await sendNext(w.deps, w.studentId, w.courseId)).toEqual({ status: 'none' });
     expect(await finishEndedCourses(w.deps, [w.courseId])).toEqual([]); // finished once
+  });
+
+  // Decision 0036: a catch-up finish sends the "course ended" DM only if ends_at is at most 24 hours old.
+  const catchUpWorld = async () => {
+    const w = await world({ normal: 10, endsAt: new Date('2000-01-10T12:00:00Z'), start: new Date('2000-01-05T09:00:00Z') });
+    await db.update(enrollments).set({ assessmentDoneAt: MON }).where(eq(enrollments.userId, w.studentId));
+    const open = await sendNext(w.deps, w.studentId, w.courseId);
+    expect(open.status).toBe('sent');
+    return { w, posts: w.slack.posted.length };
+  };
+
+  it('S28a: a catch-up finish 24 hours and 1 minute after ends_at completes the enrollment and replaces the open card but sends no DM', async () => {
+    const { w, posts } = await catchUpWorld();
+    w.clock.set(new Date('2000-01-11T12:01:00Z'));
+    expect(await finishEndedCourses(w.deps, [w.courseId])).toEqual([w.courseId]);
+    expect((await enrollmentOf(w.studentId)).status).toBe('completed');
+    const [c] = await db.select().from(courses).where(eq(courses.id, w.courseId));
+    expect(c!.status).toBe('finished');
+    expect(w.slack.replaced).toHaveLength(1);
+    expect(w.slack.replaced[0]!.message.text).toBe(TEXT.expired); // text only, no image block
+    expect(w.slack.replaced[0]!.message.blocks.every((b) => b.type !== 'image')).toBe(true);
+    expect(w.slack.posted).toHaveLength(posts); // no "course ended" DM
+  });
+
+  it('S28b: a catch-up finish exactly 24 hours after ends_at still sends the DM, with the course title', async () => {
+    const { w, posts } = await catchUpWorld();
+    w.clock.set(new Date('2000-01-11T12:00:00Z'));
+    await finishEndedCourses(w.deps, [w.courseId]);
+    expect(w.slack.posted).toHaveLength(posts + 1);
+    expect(textOf(w.slack.posted.at(-1)!)).toBe('The course "C" has ended. Your final progress is 0%.');
+  });
+
+  it('S28c: a stop (no catch-up) always sends the DM, whatever ends_at is', async () => {
+    const { w, posts } = await catchUpWorld();
+    w.clock.set(new Date('2000-03-01T12:00:00Z')); // weeks after ends_at
+    await finishCourse(w.deps, w.courseId);
+    expect(w.slack.posted).toHaveLength(posts + 1);
+    expect(textOf(w.slack.posted.at(-1)!)).toBe(TEXT.ended('C', 0));
+  });
+
+  it('S28d: one log line per finished course with the counts; a failed DM counts as failed; a second finish logs nothing', async () => {
+    const { w } = await catchUpWorld();
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((m: unknown) => void lines.push(String(m)));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      w.clock.set(new Date('2000-01-10T13:00:00Z'));
+      w.slack.failNextPost = new Error('slack down'); // the course-ended DM
+      await finishEndedCourses(w.deps, [w.courseId]);
+      await finishEndedCourses(w.deps, [w.courseId]);
+    } finally {
+      spy.mockRestore();
+      err.mockRestore();
+    }
+    expect(lines.filter((l) => l.startsWith('course '))).toEqual([`course ${w.courseId} finished: completed=1 replaced=1 failed=1`]);
   });
 
   it('S29: cards added to the course after completion do not reopen the enrollment, progress stays 60', async () => {
@@ -571,7 +626,7 @@ describe('image cards (decision 0034)', () => {
   it('I5: a message that is not a card (course start, ended, exempt) is posted without an image', async () => {
     const w = await world({ normal: 1 });
     const { dm } = await import('./scheduler.js');
-    await dm(w.deps, w.studentId, TEXT.started);
+    await dm(w.deps, w.studentId, TEXT.started('C'));
     expect(w.slack.posted[0]!.image).toBeUndefined();
   });
 
