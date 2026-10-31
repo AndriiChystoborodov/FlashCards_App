@@ -65,7 +65,7 @@ Only rules a model would guess wrong, one line each; the REST API stays the auth
 
 `start_course` and `stop_course` send Slack messages, and `start_course` freezes the cards. Three layers, none of them a security boundary (the teacher's own client also asks for approval of tool calls):
 
-1. The description says in capitals that the tool messages students and cannot be undone, and for `start_course` orders the steps: call `list_flashcards`, **show the user ALL cards with their correct options**, ask the user to confirm, then call. A test checks the wording.
+1. The description says in capitals that the tool messages students and cannot be undone, and for `start_course` says that the user's explicit request to start IS the confirmation: the agent calls at once with `confirmed: true`, without listing the cards again or asking for a second approval; only when the agent itself proposes starting does it ask first ([decision 0036](../decisions/0036-start-course-no-second-approval.md)). A test checks the wording.
 2. The input schema has a required `confirmed: true` (zod `literal(true)`, JSON Schema `const: true`) on `start_course`, `stop_course`, `delete_course` and `remove_student`. Omitting it, `false`, the string `"true"`, `1`, `null` and an extra key all give an `isError` result and no HTTP call (tests). The flag is never sent to the API.
 3. The MCP annotations mark these tools `destructiveHint` and the reads `readOnlyHint`, which lets a client ask for approval.
 
@@ -131,7 +131,7 @@ One bearer token per teacher ([decision 0014](decisions/0014-teacher-token-hashe
 
 ## Example session
 
-Teacher: "Create a Compliance course ending Dec 20 with these 6 questions, mark the first 2 as assessment, enroll ann@x.com." The agent calls `create_course`, `add_flashcards`, `enroll_students`, then `list_flashcards`, shows all six cards with their correct options and asks before `start_course` (with `confirmed: true`).
+Teacher: "Create a Compliance course ending Dec 20 with these 6 questions, mark the first 2 as assessment, enroll ann@x.com." The agent calls `create_course`, `add_flashcards`, `enroll_students`, then `list_flashcards` if it wants to check them. When the teacher says "start the course", it calls `start_course` with `confirmed: true` right away.
 
 ## Tests
 

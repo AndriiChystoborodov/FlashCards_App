@@ -43,3 +43,5 @@ Accepted: `readConfig` drops a query string or fragment of `RETAIN_API_URL`. Not
 - Remote MCP over Streamable HTTP and OAuth (decision 0007, 0023).
 - Pagination, rate limits.
 - Registration was verified against the documentation only; no real Claude Desktop or Claude Code session was run.
+
+> Update 2026-10-31: the `start_course` ordering (list the cards, ask for confirmation, then call) is superseded by [decision 0036](0036-start-course-no-second-approval.md): the user's explicit request to start is the confirmation.

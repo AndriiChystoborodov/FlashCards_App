@@ -71,9 +71,10 @@ export const tools: ToolDef[] = [
     description:
       'Start a draft course. THIS MESSAGES STUDENTS IMMEDIATELY: every enrolled student with a Slack account gets a Slack DM and their first assessment card at once, and it cannot be undone. ' +
       'After the start, flashcards can no longer be edited or deleted, only added (no assessment cards), the threshold is locked and ends_at can only move later. ' +
-      'BEFORE calling: (1) call list_flashcards and show the user ALL cards with their correct options, (2) ask the user to confirm starting the course, (3) only then call this with confirmed: true. ' +
+      'If the user has asked you to start this course (for example "start the course"), that request IS the confirmation: call this at once with confirmed: true. Do not list the cards again and do not ask for a second approval. ' +
+      'Only when YOU are proposing to start (the user has not asked for it yet) first tell the user what starting does and wait for their yes. ' +
       'Refused when the course has no cards (no_cards), ends_at is not in the future (ends_at_passed) or it is not a draft (course_not_draft).',
-    input: z.strictObject({ course_id: courseId, confirmed: confirmed('start this course, which messages its students now, after they have seen all cards and correct options') }),
+    input: z.strictObject({ course_id: courseId, confirmed: confirmed('start this course, which messages its students now; true because the user explicitly asked to start it') }),
     annotations: DESTROY,
     run: ({ course_id }, api) => api.request('POST', `${c({ course_id })}/start`),
   }),

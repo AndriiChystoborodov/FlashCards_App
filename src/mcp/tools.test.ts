@@ -154,10 +154,10 @@ describe('M4 descriptions carry the rules', () => {
     expect(d('start_course')).toMatch(/MESSAGES STUDENTS/);
     expect(d('stop_course')).toMatch(/MESSAGES STUDENTS/);
   });
-  it('start_course says to list the cards with the correct options and get confirmation first', () => {
-    expect(d('start_course')).toMatch(/call list_flashcards and show the user ALL cards with their correct options/);
-    expect(d('start_course')).toMatch(/confirm/);
-    expect(d('start_course')).toMatch(/confirmed: true/);
+  it('start_course treats the user\'s explicit request to start as the confirmation and does not ask again (decision 0036)', () => {
+    expect(d('start_course')).toMatch(/that request IS the confirmation: call this at once with confirmed: true/);
+    expect(d('start_course')).toMatch(/do not ask for a second approval/);
+    expect(d('start_course')).not.toMatch(/call list_flashcards and show the user ALL cards/);
   });
   it('add_flashcards says the question is an image: 500 characters, plain text, supported characters, the refusal codes (decision 0034)', () => {
     expect(d('add_flashcards')).toMatch(/IMAGE: at most 500 characters, plain text only/);
