@@ -6,6 +6,8 @@ Teachers manage courses from an AI agent (Claude, Codex) through an MCP server. 
 
 **Status:** implementation in progress (Tasks 1 to 4 done). Local first: Node.js and Docker Postgres ([decision 0023](docs/decisions/0023-local-first.md)).
 
+Demo video: https://youtu.be/L2-vwY22LD4
+
 ## How it works
 
 1. **The teacher creates a course** through the agent: title, end date, flashcards, the students' emails. Some cards are marked for the initial assessment.
