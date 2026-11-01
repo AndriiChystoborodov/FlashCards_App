@@ -4,8 +4,6 @@ Spaced-repetition app for company and university courses, delivered in Slack.
 
 Teachers manage courses from an AI agent (Claude, Codex) through an MCP server. Students get one card at a time in a Slack DM and answer with a click. The schedule adapts to each student with the FSRS algorithm, so they see what they don't know more often and what they know less often.
 
-**Status:** implementation in progress (Tasks 1 to 4 done). Local first: Node.js and Docker Postgres ([decision 0023](docs/decisions/0023-local-first.md)).
-
 Demo video: https://youtu.be/L2-vwY22LD4
 
 ## How it works
